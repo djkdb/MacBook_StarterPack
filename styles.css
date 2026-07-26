@@ -119,6 +119,53 @@ button { transition: transform .12s ease, background-color .2s ease, color .2s e
   border-radius: var(--r-xs);
 }
 
+/* ============================================================
+ * 내부 스크롤 영역의 스크롤 막대
+ * ------------------------------------------------------------
+ * macOS에서 "스크롤 막대 항상 표시"를 켜두면 두꺼운 고전 스크롤 막대가
+ * 그려져서, chrome이 물러나야 한다는 이 디자인의 원칙과 어긋납니다.
+ * 시스템 설정과 무관하게 얇고 조용한 오버레이 형태로 통일합니다.
+ * ============================================================ */
+.sidebar-inner, .sheet-body, .scrollbox, .rail {
+  scrollbar-width: thin;                                   /* Firefox */
+  scrollbar-color: rgba(0, 0, 0, .22) transparent;
+}
+.sidebar-inner::-webkit-scrollbar,
+.sheet-body::-webkit-scrollbar,
+.scrollbox::-webkit-scrollbar,
+.rail::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+.sidebar-inner::-webkit-scrollbar-track,
+.sheet-body::-webkit-scrollbar-track,
+.scrollbox::-webkit-scrollbar-track,
+.rail::-webkit-scrollbar-track {
+  background: transparent;
+}
+.sidebar-inner::-webkit-scrollbar-thumb,
+.sheet-body::-webkit-scrollbar-thumb,
+.scrollbox::-webkit-scrollbar-thumb,
+.rail::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, .22);
+  border-radius: var(--r-pill);
+}
+.sidebar-inner::-webkit-scrollbar-thumb:hover,
+.sheet-body::-webkit-scrollbar-thumb:hover,
+.scrollbox::-webkit-scrollbar-thumb:hover,
+.rail::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, .36);
+}
+/* 고전 스크롤 막대의 위아래 화살표 버튼 제거 */
+.sidebar-inner::-webkit-scrollbar-button,
+.sheet-body::-webkit-scrollbar-button,
+.scrollbox::-webkit-scrollbar-button,
+.rail::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
 /* 파란 필 — 유일한 1차 액션 */
 .btn-pill {
   background: var(--primary);
