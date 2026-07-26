@@ -238,7 +238,7 @@ const Engine = (() => {
 
     /* 브라우저가 포커스를 잃었다가 돌아옴 (OS 화면을 다녀옴) */
     blur(q, c, box, api) {
-      const pad = h('div','padzone waiting');
+      const pad = h('div','padzone');
       pad.innerHTML = `
         <div class="radar"><span></span><span></span><span></span></div>
         <p class="padhint">${c.label || '실행했다가 이 화면으로 돌아오면 자동으로 완료됩니다'}</p>
@@ -399,7 +399,7 @@ const Engine = (() => {
         <textarea class="editor" id="ed" spellcheck="false" rows="3"></textarea>
         <div class="editmeta">
           <span id="caretinfo"></span>
-          <button class="ghost sm" id="resetEd">↺ 처음으로</button>
+          <button class="btn-link sm" id="resetEd">처음으로 되돌리기</button>
         </div>`;
       box.appendChild(pad);
 
@@ -443,7 +443,7 @@ const Engine = (() => {
         if (ok && usedShortcut) api.success();
         else if (ok && !viaHintShown) {
           viaHintShown = true;
-          api.note('위치는 맞았지만 <b>' + symbols(c.via) + '</b> 로 옮긴 게 아니네요. ↺ 로 되돌린 뒤 단축키로 해보세요.');
+          api.note('위치는 맞았지만 <b>' + symbols(c.via) + '</b> 로 옮긴 게 아니네요. “처음으로 되돌리기”를 누른 뒤 단축키로 해보세요.');
         }
       };
 
@@ -464,7 +464,7 @@ const Engine = (() => {
       pad.innerHTML = `
         <div class="answerrow">
           <input class="bigin" id="ai" placeholder="${c.placeholder||'정답 입력'}" autocomplete="off" />
-          <button class="primary" id="asub">확인</button>
+          <button class="btn-pill lg" id="asub">확인</button>
         </div>
         <p class="padhint" id="ahint">${c.hint || ''}</p>`;
       box.appendChild(pad);

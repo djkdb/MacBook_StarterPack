@@ -41,6 +41,11 @@ CHAPTERS.forEach((ch, ci) => ch.quests.forEach((q, qi) => {
 const byId = Object.fromEntries(ALL.map(q => [q.id, q]));
 const TOTAL_XP = ALL.reduce((s,q) => s + q.xp, 0);
 
+/* 홈 타일의 밝기 리듬 — 색이 바뀌는 것 자체가 섹션 구분선 */
+const TILE_CYCLE = ['dark','light','dark-2','parchment','dark-3','light','dark','parchment','dark-2'];
+const tileTone = (i) => TILE_CYCLE[i % TILE_CYCLE.length];
+const isDarkTone = (t) => t.startsWith('dark');
+
 /* ─────────── 레벨 계산 ─────────── */
 function rankOf(xp) {
   let i = 0;
@@ -58,46 +63,56 @@ const el = (tag, cls, html) => {
   return n;
 };
 
-/* ─────────── 토스트 / 색종이 ─────────── */
-function toast(msg, kind='ok') {
+/* ─────────── 토스트 / 축하 ─────────── */
+function toast(msg, kind='') {
   const t = el('div', 'toast ' + kind, msg);
   $('#toastwrap').appendChild(t);
   requestAnimationFrame(() => t.classList.add('in'));
   setTimeout(() => { t.classList.remove('in'); setTimeout(()=>t.remove(), 400); }, 2600);
 }
 
-function confetti(n = 70) {
+// 축하도 시스템 색 안에서 — Action Blue 계열로만, 짧게
+function confetti(n = 48) {
   const wrap = $('#confetti');
-  const colors = ['#5b8cff','#a06bff','#ff6b9d','#ffd166','#4ade80','#38e5d0'];
+  const colors = ['#0066cc', '#2997ff', '#0071e3', '#d2d2d7'];
   for (let i = 0; i < n; i++) {
     const p = el('i');
     p.style.left = Math.random()*100 + 'vw';
     p.style.background = colors[i % colors.length];
-    p.style.animationDelay = (Math.random()*0.4) + 's';
-    p.style.animationDuration = (1.6 + Math.random()*1.4) + 's';
-    p.style.transform = `rotate(${Math.random()*360}deg)`;
+    p.style.animationDelay = (Math.random()*0.3) + 's';
+    p.style.animationDuration = (1.5 + Math.random()*1.1) + 's';
     wrap.appendChild(p);
-    setTimeout(()=>p.remove(), 3400);
+    setTimeout(()=>p.remove(), 3000);
   }
 }
 
 /* ============================================================
- * 상단 XP 바
+ * 서브 내비 (레벨 · XP · 진행 표시줄)
  * ============================================================ */
 function renderHeader() {
   const xp = State.data.xp;
   const r = rankOf(xp);
-  const base = r.xp;
-  const cap  = r.next ? r.next.xp : TOTAL_XP;
-  const pct  = Math.min(100, ((xp - base) / Math.max(1, cap - base)) * 100);
-
-  $('#lvlBadge').textContent = 'Lv.' + (r.idx + 1);
-  $('#rankName').textContent = r.icon + ' ' + r.name;
-  $('#xpText').textContent = r.next ? `${xp} / ${cap} XP` : `${xp} XP · MAX`;
-  $('#xpFill').style.width = pct + '%';
-
   const cleared = ALL.filter(q => State.isCleared(q.id)).length;
+  const allDone = cleared === ALL.length;
+
+  $('#rankName').textContent = r.icon + ' ' + r.name;
+  $('#xpText').textContent = r.next ? `${xp} XP` : `${xp} XP · 완주`;
+  $('#xpFill').style.width = (xp / TOTAL_XP * 100) + '%';
   $('#sideProgress').textContent = Math.round(cleared / ALL.length * 100) + '%';
+
+  const btn = $('#resumeBtn');
+  btn.textContent = allDone ? '치트시트' : (cleared ? '이어서 하기' : '시작하기');
+  btn.onclick = () => {
+    if (allDone) return openCheat();
+    State.data.started = true; State.save();
+    goTo(firstUncleared().id);
+  };
+}
+
+function setView(view, title) {
+  document.body.dataset.view = view;
+  $('#subnavTitle').textContent = title || '맥북 스타터팩';
+  window.scrollTo({ top: 0, behavior: 'auto' });
 }
 
 /* ============================================================
@@ -113,6 +128,7 @@ function renderSidebar() {
     const done = ch.quests.filter(q => State.isCleared(q.id)).length;
     const all  = ch.quests.length;
     const complete = done === all;
+
     // 순서를 강제하지 않습니다 — 원하는 챕터부터 시작할 수 있게.
     const item = el('div', 'chapter' + (complete ? ' complete' : '') + (ci === openChapter ? ' open' : ''));
     item.innerHTML = `
@@ -120,9 +136,9 @@ function renderSidebar() {
         <span class="chapter-icon">${ch.icon}</span>
         <span class="chapter-name">
           <b>${ch.title}</b>
-          <small>${done}/${all}${complete ? ' · 완료' : ''}</small>
+          <small>${done}/${all}</small>
         </span>
-        <span class="chapter-ring" style="--p:${done/all*100}">${complete ? '✓' : ''}</span>
+        <span class="chapter-mark">${complete ? '✓' : ''}</span>
       </button>
       <ul class="qlist"></ul>`;
 
@@ -132,12 +148,11 @@ function renderSidebar() {
         + (State.isDone(q.id) ? ' done' : '')
         + (State.isSkipped(q.id) ? ' skipped' : '')
         + (current && current.id === q.id ? ' active' : ''));
-      // 부제가 단축키처럼 짧을 때만 옆에 붙입니다 (긴 설명문은 이름을 밀어내므로 생략)
-      const tag = q.sub && q.sub.length <= 14 ? q.sub : '';
+      // 레일에는 제목만 둡니다. 단축키는 퀘스트 화면·회고·치트시트에 이미 있고,
+      // 오른쪽에 덧붙이면 제목이 줄바꿈될 때 줄이 어긋납니다.
       li.innerHTML = `
-        <span class="qdot"></span>
-        <span class="qname">${q.title}</span>
-        ${tag ? `<span class="qsub">${tag}</span>` : ''}`;
+        <span class="qmark">${State.isDone(q.id) ? '✓' : (State.isSkipped(q.id) ? '–' : '○')}</span>
+        <span class="qname">${q.title}</span>`;
       li.addEventListener('click', () => goTo(q.id));
       ul.appendChild(li);
     });
@@ -150,7 +165,6 @@ function renderSidebar() {
     nav.appendChild(item);
   });
 
-  // 배지
   const bwrap = $('#badges');
   const earned = CHAPTERS.filter(ch => ch.quests.every(q => State.isDone(q.id)));
   if (!earned.length) bwrap.innerHTML = '<span class="badge-empty">아직 없어요</span>';
@@ -163,7 +177,7 @@ function renderSidebar() {
 /* ============================================================
  * 화면 전환
  * ============================================================ */
-let current = null;      // 현재 퀘스트
+let current = null;       // 현재 퀘스트
 let teardown = () => {};  // 현재 판정기 해제
 
 function clearStage() {
@@ -172,79 +186,85 @@ function clearStage() {
   $('#stage').innerHTML = '';
 }
 
-/* ─────────── 시작 화면 ─────────── */
+function firstUncleared() {
+  return ALL.find(q => !State.isCleared(q.id)) || ALL[0];
+}
+
+/* ─────────── 홈: 풀블리드 제품 타일 스택 ─────────── */
 function renderHome() {
   clearStage();
   current = null;
+  setView('home');
 
   const cleared = ALL.filter(q => State.isCleared(q.id)).length;
-  const resume = State.data.last && byId[State.data.last];
 
-  const v = el('div', 'home');
-  v.innerHTML = `
-    <div class="hero">
-      <div class="hero-emoji">💻</div>
-      <h1>맥북, 처음이시죠?</h1>
-      <p class="lead">
-        설명서를 읽는 대신 <b>직접 눌러보면서</b> 배웁니다.<br/>
-        키를 실제로 누르고 트랙패드를 실제로 문질러야 다음으로 넘어가요.
-      </p>
-
-      <div class="stats">
-        <div><b>${CHAPTERS.length}</b><small>챕터</small></div>
-        <div><b>${ALL.length}</b><small>퀘스트</small></div>
-        <div><b>${TOTAL_XP}</b><small>총 XP</small></div>
-        <div><b>${cleared}</b><small>클리어</small></div>
+  const hero = `
+    <section class="tile light">
+      <div class="tile-inner">
+        <h1>맥북, 처음이시죠?</h1>
+        <p class="tile-lead">설명서를 읽는 대신 직접 눌러보면서 배웁니다.</p>
+        <div class="tile-actions">
+          <button class="btn-pill hero" id="startBtn">${cleared ? '이어서 하기' : '퀘스트 시작하기'}</button>
+          <button class="btn-ghost" id="reviewBtn">치트시트 보기</button>
+        </div>
+        <div class="tile-product hero">💻</div>
+        <div class="statrow">
+          <div><b>${CHAPTERS.length}</b><small>챕터</small></div>
+          <div><b>${ALL.length}</b><small>퀘스트</small></div>
+          <div><b class="tabular">${TOTAL_XP}</b><small>총 XP</small></div>
+          <div><b class="tabular">${cleared}</b><small>클리어</small></div>
+        </div>
+        ${Engine.isMac ? '' : `
+          <div class="notice">
+            지금 맥이 아닌 기기에서 열고 계신 것 같습니다. 내용은 그대로 보실 수 있지만,
+            키 입력과 트랙패드 제스처 판정은 macOS의 브라우저에서 동작합니다.
+          </div>`}
       </div>
+    </section>`;
 
-      <div class="hero-actions">
-        <button class="primary big" id="startBtn">
-          ${cleared ? '이어서 하기' : '퀘스트 시작하기'} →
-        </button>
-        ${cleared ? '<button class="ghost big" id="reviewBtn">치트시트 보기</button>' : ''}
-      </div>
+  const tiles = CHAPTERS.map((ch, i) => {
+    const done = ch.quests.filter(q => State.isCleared(q.id)).length;
+    const all = ch.quests.length;
+    const complete = done === all;
+    const tone = tileTone(i);
+    const dark = isDarkTone(tone);
+    const label = complete ? '다시 보기' : (done ? '이어서 하기' : '시작하기');
 
-      ${Engine.isMac ? '' : `
-        <div class="warn">
-          지금 맥이 아닌 기기에서 열고 계신 것 같아요. 내용은 볼 수 있지만
-          키 입력·트랙패드 판정은 맥북에서 열어야 정상 동작합니다.
-        </div>`}
-    </div>
+    return `
+      <section class="tile ${tone}">
+        <div class="tile-inner">
+          <p class="tile-eyebrow">챕터 ${i + 1}${complete ? ' · 완료' : ''}</p>
+          <h2>${ch.title}</h2>
+          <p class="tile-lead">${ch.tagline}</p>
+          <div class="tile-product">${ch.icon}</div>
+          <div class="tile-progress"><i style="width:${done / all * 100}%"></i></div>
+          <p class="tile-note">${all}개 퀘스트 · ${done}개 완료</p>
+          <div class="tile-actions">
+            <button class="btn-pill lg" data-ci="${i}">${label}</button>
+          </div>
+        </div>
+      </section>`;
+  }).join('');
 
-    <div class="chaptergrid">
-      ${CHAPTERS.map((ch, i) => {
-        const d = ch.quests.filter(q => State.isCleared(q.id)).length;
-        return `
-        <button class="chapcard${d===ch.quests.length?' complete':''}" data-ci="${i}">
-          <span class="chapcard-icon">${ch.icon}</span>
-          <b>${ch.title}</b>
-          <small>${ch.quests.length}개 퀘스트 · ${d}개 완료</small>
-          <span class="chapbar"><i style="width:${d/ch.quests.length*100}%"></i></span>
-        </button>`;
-      }).join('')}
-    </div>`;
-
+  const v = el('div', 'tilestack');
+  v.innerHTML = hero + tiles;
   $('#stage').appendChild(v);
 
   $('#startBtn').addEventListener('click', () => {
     State.data.started = true; State.save();
-    goTo(resume && !State.isCleared(resume.id) ? resume.id : firstUncleared().id);
+    goTo(firstUncleared().id);
   });
-  const rb = $('#reviewBtn');
-  if (rb) rb.addEventListener('click', openCheat);
+  $('#reviewBtn').addEventListener('click', openCheat);
 
-  $$('.chapcard').forEach(b => b.addEventListener('click', () => {
-    const ch = CHAPTERS[+b.dataset.ci];
-    const target = ch.quests.find(q => !State.isCleared(q.id)) || ch.quests[0];
-    openChapter = +b.dataset.ci;
-    goTo(target.id);
+  $$('.tile-actions [data-ci]').forEach(b => b.addEventListener('click', () => {
+    const ci = +b.dataset.ci;
+    const ch = CHAPTERS[ci];
+    openChapter = ci;
+    goTo((ch.quests.find(q => !State.isCleared(q.id)) || ch.quests[0]).id);
   }));
 
   renderSidebar();
-}
-
-function firstUncleared() {
-  return ALL.find(q => !State.isCleared(q.id)) || ALL[0];
+  renderHeader();
 }
 
 /* ─────────── 퀘스트 화면 ─────────── */
@@ -255,38 +275,33 @@ function goTo(id) {
   current = q;
   openChapter = q._ci;
   State.data.last = id; State.save();
+  setView('quest', q._ch.title);
   renderQuest(q);
   renderSidebar();
   renderHeader();
-  $('#stage').scrollTop = 0;
 }
 
 function renderQuest(q) {
   const ch = q._ch;
   const already = State.isDone(q.id);
 
-  const v = el('article', 'questcard' + (q.boss ? ' boss' : ''));
+  const v = el('article', 'questview');
   v.innerHTML = `
-    <div class="qtop">
+    <div class="qhead">
       <div class="qcrumb">
-        <span class="qcrumb-icon">${ch.icon}</span>
+        <span>${ch.icon}</span>
         <span>${ch.title}</span>
-        <span class="qcrumb-sep">·</span>
-        <span>${q._qi + 1} / ${ch.quests.length}</span>
-        ${q.boss ? '<span class="bosstag">BOSS</span>' : ''}
+        <span class="sep">·</span>
+        <span class="tabular">${q._qi + 1} / ${ch.quests.length}</span>
+        ${q.boss ? '<span class="bosstag">보스</span>' : ''}
+        <span class="xp tabular">+${q.xp} XP</span>
       </div>
-      <div class="qxp">+${q.xp} XP</div>
+      <h1 class="qtitle">${q.title}</h1>
+      ${q.sub ? `<div class="qsubtitle">${q.sub}</div>` : ''}
+      ${q._qi === 0 && ch.intro ? `<p class="chintro">${ch.intro}</p>` : ''}
     </div>
 
-    <h1 class="qtitle">${q.title}</h1>
-    ${q.sub ? `<div class="qsubtitle">${q.sub}</div>` : ''}
-
-    ${q._qi === 0 && ch.intro ? `<p class="chintro">${ch.intro}</p>` : ''}
-
-    ${q.how ? `
-      <ol class="howlist">
-        ${q.how.map(s => `<li>${s}</li>`).join('')}
-      </ol>` : ''}
+    ${q.how ? `<ol class="howlist">${q.how.map(s => `<li>${s}</li>`).join('')}</ol>` : ''}
 
     <div class="practice" id="practice"></div>
 
@@ -294,15 +309,15 @@ function renderQuest(q) {
     <div class="note" id="qnote" hidden></div>
 
     <div class="successbox" id="successbox" hidden>
-      <div class="successhead">✓ 클리어!</div>
+      <div class="successhead"><span>✓</span> 클리어</div>
       ${q.tip ? `<p class="tipbody"><b>알아두면 좋은 것</b><br/>${q.tip}</p>` : ''}
-      <button class="primary big" id="nextBtn">다음 퀘스트 →</button>
+      <button class="btn-pill lg" id="nextBtn">다음 퀘스트</button>
     </div>
 
     <div class="qfoot" id="qfoot">
-      <button class="ghost" id="prevBtn" ${q._flat === 0 ? 'disabled' : ''}>← 이전</button>
-      <button class="ghost" id="skipBtn">건너뛰기</button>
-      <button class="ghost" id="homeBtn">처음 화면</button>
+      <button class="btn-link sm" id="prevBtn" ${q._flat === 0 ? 'disabled' : ''}>← 이전</button>
+      <button class="btn-link sm" id="skipBtn">건너뛰기</button>
+      <button class="btn-link sm spacer" id="homeBtn">여정 전체 보기</button>
     </div>`;
 
   $('#stage').appendChild(v);
@@ -325,7 +340,7 @@ function renderQuest(q) {
   $('#homeBtn').addEventListener('click', renderHome);
   $('#skipBtn').addEventListener('click', () => {
     State.skip(q.id);
-    toast('건너뛰었습니다. 나중에 다시 올 수 있어요.', 'info');
+    toast('건너뛰었습니다. 나중에 다시 올 수 있어요.');
     advance(q);
   });
 
@@ -343,17 +358,15 @@ function onSuccess(q) {
   renderHeader();
   renderSidebar();
 
-  if (gained) toast(`+${q.xp} XP · ${q.title} 클리어!`);
+  if (gained) toast(`+${q.xp} XP · ${q.title}`);
   if (after > before) {
-    confetti(60);
-    setTimeout(() => toast(`레벨 업! 이제 «${RANKS[after].name}» 입니다 ${RANKS[after].icon}`, 'level'), 500);
+    setTimeout(() => toast(`${RANKS[after].icon} ${RANKS[after].name}`, 'level'), 500);
   }
 
-  // 챕터를 다 끝냈으면 축하
   const ch = q._ch;
   if (ch.quests.every(x => State.isDone(x.id))) {
-    confetti(90);
-    setTimeout(() => toast(`배지 획득: ${BADGES[ch.id].icon} ${BADGES[ch.id].name}`, 'level'), 900);
+    confetti(56);
+    setTimeout(() => toast(`배지 획득 · ${BADGES[ch.id].icon} ${BADGES[ch.id].name}`, 'level'), 900);
   }
 }
 
@@ -362,9 +375,8 @@ function showSuccess(q, quiet) {
   if (!box) return;
   box.hidden = false;
   if (!quiet) box.classList.add('pop');
-  $('#qfoot').classList.add('dim');
   const btn = $('#nextBtn');
-  btn.textContent = q._flat === ALL.length - 1 ? '졸업하기 🎓' : '다음 퀘스트 →';
+  btn.textContent = q._flat === ALL.length - 1 ? '졸업하기' : '다음 퀘스트';
   btn.onclick = () => advance(q);
   // 이미 클리어한 퀘스트를 다시 열었을 때는 화면을 건드리지 않습니다.
   if (!quiet) setTimeout(() => btn.focus(), 60);
@@ -372,89 +384,104 @@ function showSuccess(q, quiet) {
 
 function advance(q) {
   const ch = q._ch;
-  const isLastOfChapter = q._qi === ch.quests.length - 1;
-
   if (q._flat === ALL.length - 1) return renderFinale();
-  if (isLastOfChapter) return renderChapterEnd(ch);
+  if (q._qi === ch.quests.length - 1) return renderChapterEnd(ch);
   goTo(ALL[q._flat + 1].id);
 }
 
-/* ─────────── 챕터 완료 화면 ─────────── */
+/* ─────────── 챕터 완료 ─────────── */
 function renderChapterEnd(ch) {
   clearStage();
+  current = null;
+  setView('home', ch.title);
+
   const b = BADGES[ch.id];
   const done = ch.quests.filter(q => State.isDone(q.id)).length;
-  const nextCh = CHAPTERS[CHAPTERS.indexOf(ch) + 1];
+  const ci = CHAPTERS.indexOf(ch);
+  const nextCh = CHAPTERS[ci + 1];
 
-  const v = el('div', 'home');
+  const v = el('div', 'tilestack');
   v.innerHTML = `
-    <div class="hero">
-      <div class="hero-emoji big">${b.icon}</div>
-      <h1>${ch.title} 완주!</h1>
-      <p class="lead">${done} / ${ch.quests.length} 퀘스트를 해냈습니다.</p>
+    <section class="tile light">
+      <div class="tile-inner">
+        <p class="tile-eyebrow">챕터 ${ci + 1} 완료</p>
+        <h1>${ch.title}</h1>
+        <p class="tile-lead">${done} / ${ch.quests.length} 퀘스트를 해냈습니다.</p>
+        <div class="tile-product">${b.icon}</div>
 
-      <div class="recap">
-        <div class="recap-title">이번 챕터에서 배운 것</div>
-        <ul>
-          ${ch.quests.map(q => `
-            <li class="${State.isDone(q.id) ? '' : 'undone'}">
-              <span class="recap-mark">${State.isDone(q.id) ? '✓' : '·'}</span>
-              <span>${q.title}</span>
-              ${q.sub ? `<kbd>${q.sub}</kbd>` : ''}
-            </li>`).join('')}
-        </ul>
-      </div>
+        <div class="recap">
+          <ul>
+            ${ch.quests.map(q => `
+              <li class="${State.isDone(q.id) ? '' : 'undone'}">
+                <span class="recap-mark">${State.isDone(q.id) ? '✓' : '–'}</span>
+                <span>${q.title}</span>
+                ${q.sub && q.sub.length <= 14 ? `<kbd>${q.sub}</kbd>` : ''}
+              </li>`).join('')}
+          </ul>
+        </div>
 
-      <div class="hero-actions">
-        ${nextCh ? `<button class="primary big" id="nextChBtn">다음 챕터 · ${nextCh.icon} ${nextCh.title} →</button>` : ''}
-        <button class="ghost big" id="backHome">처음 화면</button>
+        <div class="tile-actions">
+          ${nextCh ? `<button class="btn-pill lg" id="nextChBtn">다음 챕터 · ${nextCh.title}</button>` : ''}
+          <button class="btn-ghost" id="backHome">여정 전체 보기</button>
+        </div>
       </div>
-    </div>`;
+    </section>`;
   $('#stage').appendChild(v);
 
   if (nextCh) $('#nextChBtn').addEventListener('click', () => goTo(nextCh.quests[0].id));
   $('#backHome').addEventListener('click', renderHome);
   renderSidebar();
+  renderHeader();
 }
 
-/* ─────────── 졸업 화면 ─────────── */
+/* ─────────── 졸업 ─────────── */
 function renderFinale() {
   clearStage();
-  confetti(140);
+  current = null;
+  setView('home', '졸업');
+  confetti(90);
 
   const done = ALL.filter(q => State.isDone(q.id)).length;
   const r = rankOf(State.data.xp);
 
-  const v = el('div', 'home');
+  const v = el('div', 'tilestack');
   v.innerHTML = `
-    <div class="diploma">
-      <div class="diploma-seal">🎓</div>
-      <div class="diploma-kicker">MacBook Starter Pack</div>
-      <h1>졸업을 축하합니다</h1>
-      <p class="lead">
-        ${ALL.length}개 중 <b>${done}개</b>의 퀘스트를 클리어하고<br/>
-        <b>${State.data.xp} XP</b> · <b>${r.icon} ${r.name}</b> 에 도달했습니다.
-      </p>
-      <div class="diploma-badges">
-        ${CHAPTERS.map(ch => {
-          const ok = ch.quests.every(q => State.isDone(q.id));
-          const b = BADGES[ch.id];
-          return `<span class="badge ${ok?'':'off'}" title="${b.name}">${b.icon}<em>${b.name}</em></span>`;
-        }).join('')}
+    <section class="tile dark">
+      <div class="tile-inner">
+        <p class="tile-eyebrow">MacBook Starter Pack</p>
+        <h1>졸업을 축하합니다.</h1>
+        <p class="tile-lead">
+          ${ALL.length}개 중 ${done}개의 퀘스트를 클리어하고
+          ${State.data.xp} XP · ${r.name} 에 도달했습니다.
+        </p>
+        <div class="tile-product">🎓</div>
+        <div class="diploma-badges">
+          ${CHAPTERS.map(ch => {
+            const okc = ch.quests.every(q => State.isDone(q.id));
+            const b = BADGES[ch.id];
+            return `<span class="badge ${okc ? '' : 'off'}">${b.icon}<em>${b.name}</em></span>`;
+          }).join('')}
+        </div>
       </div>
-      <p class="muted">
-        이제 남은 건 습관입니다. 마우스로 클릭하려던 순간마다
-        "이거 단축키 있었지?" 하고 한 번씩 떠올려보세요.
-      </p>
-      <div class="hero-actions">
-        <button class="primary big" id="cheatFromEnd">치트시트 열기</button>
-        <button class="ghost big" id="backHome2">처음 화면</button>
+    </section>
+
+    <section class="tile light">
+      <div class="tile-inner">
+        <h2>이제 남은 건 습관입니다.</h2>
+        <p class="tile-lead">
+          마우스로 클릭하려던 순간마다 "이거 단축키 있었지?" 하고 한 번씩 떠올려보세요.
+        </p>
+        <div class="tile-actions">
+          <button class="btn-pill lg" id="cheatFromEnd">치트시트 열기</button>
+          <button class="btn-ghost" id="backHome2">여정 전체 보기</button>
+        </div>
       </div>
-    </div>`;
+    </section>`;
   $('#stage').appendChild(v);
   $('#cheatFromEnd').addEventListener('click', openCheat);
   $('#backHome2').addEventListener('click', renderHome);
   renderSidebar();
+  renderHeader();
 }
 
 /* ============================================================
@@ -471,17 +498,12 @@ function openCheat() {
   body.innerHTML = CHAPTERS.map(ch => {
     const rows = ch.quests.map(q => {
       const sc = shortcutOf(q);
-      if (!sc) return '';
-      return `<tr><td class="sc"><kbd>${sc}</kbd></td><td>${q.title}</td></tr>`;
+      return sc ? `<tr><td class="sc"><kbd>${sc}</kbd></td><td>${q.title}</td></tr>` : '';
     }).filter(Boolean).join('');
     const extras = (CHEAT_EXTRA[ch.id] || []).map(([k, d]) =>
       `<tr><td class="sc"><kbd>${k}</kbd></td><td>${d}</td></tr>`).join('');
     if (!rows && !extras) return '';
-    return `
-      <section class="cheatsec">
-        <h3>${ch.icon} ${ch.title}</h3>
-        <table>${rows}${extras}</table>
-      </section>`;
+    return `<section class="cheatsec"><h3>${ch.icon} ${ch.title}</h3><table>${rows}${extras}</table></section>`;
   }).join('');
   $('#cheatModal').hidden = false;
 }
@@ -494,8 +516,6 @@ function closeCheat() { $('#cheatModal').hidden = true; }
 function boot() {
   State.load();
   Engine.installGuards();
-  renderHeader();
-  renderSidebar();
 
   if (State.data.started && State.data.last && !ALL.every(q => State.isCleared(q.id))) {
     goTo(State.data.last);
@@ -504,6 +524,8 @@ function boot() {
   }
 
   $('#brandBtn').addEventListener('click', renderHome);
+  $('#navHome').addEventListener('click', renderHome);
+  $('#subnavTitle').addEventListener('click', renderHome);
   $('#cheatBtn').addEventListener('click', openCheat);
   $('#cheatClose').addEventListener('click', closeCheat);
   $('#cheatPrint').addEventListener('click', () => window.print());
@@ -512,9 +534,8 @@ function boot() {
   $('#resetBtn').addEventListener('click', () => {
     if (!confirm('진행 상황을 모두 지우고 처음부터 다시 시작할까요?')) return;
     State.reset();
-    renderHeader();
     renderHome();
-    toast('처음부터 다시 시작합니다.', 'info');
+    toast('처음부터 다시 시작합니다.');
   });
 
   document.addEventListener('keydown', (e) => {

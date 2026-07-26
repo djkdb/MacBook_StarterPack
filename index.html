@@ -5,48 +5,49 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>맥북 스타터팩 — 처음 쓰는 사람을 위한 인터랙티브 퀘스트</title>
 <meta name="description" content="맥북을 처음 산 사람을 위한 퀘스트형 인터랙티브 가이드. 단축키와 트랙패드 제스처를 직접 눌러보며 배웁니다." />
-<meta name="color-scheme" content="dark" />
+<meta name="color-scheme" content="light" />
 <link rel="stylesheet" href="styles.css" />
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💻</text></svg>" />
 </head>
-<body>
+<body data-view="home">
 
-<!-- ───────────────────────── 상단 바 ───────────────────────── -->
-<header class="topbar">
-  <button class="brand" id="brandBtn" title="처음 화면으로">
-    <span class="brand-logo" aria-hidden="true">💻</span>
-    <span class="brand-text">
-      <strong>맥북 스타터팩</strong>
-      <small>MacBook Quest</small>
-    </span>
-  </button>
+<!-- ───────────── 글로벌 내비게이션 (44px · 순수 블랙) ───────────── -->
+<nav class="globalnav" aria-label="전체">
+  <div class="globalnav-inner">
+    <button class="gn-brand" id="brandBtn">맥북 스타터팩</button>
+    <ul class="gn-links">
+      <li><button id="navHome">여정</button></li>
+      <li><button id="cheatBtn">치트시트</button></li>
+      <li><button id="resetBtn">초기화</button></li>
+    </ul>
+  </div>
+</nav>
 
-  <div class="xpwrap" id="xpwrap">
-    <div class="xpline">
-      <span class="lvl" id="lvlBadge">Lv.1</span>
-      <span class="rank" id="rankName">맥린이</span>
-      <span class="xptext" id="xpText">0 / 100 XP</span>
+<!-- ───────────── 서브 내비게이션 (52px · 프로스티드 파치먼트) ───────────── -->
+<div class="subnav" id="subnav">
+  <div class="subnav-inner">
+    <button class="subnav-title" id="subnavTitle">맥북 스타터팩</button>
+    <div class="subnav-right">
+      <span class="subnav-meta" id="rankName">맥린이</span>
+      <span class="subnav-dot" aria-hidden="true"></span>
+      <span class="subnav-meta tabular" id="xpText">0 XP</span>
+      <button class="btn-pill" id="resumeBtn">시작하기</button>
     </div>
-    <div class="xpbar"><div class="xpbar-fill" id="xpFill"></div></div>
   </div>
-
-  <div class="topactions">
-    <button class="ghost" id="cheatBtn" title="단축키 치트시트">📋 치트시트</button>
-    <button class="ghost" id="resetBtn" title="진행 상황 초기화">↺ 초기화</button>
+  <div class="subnav-progress" role="progressbar" aria-label="전체 진행률">
+    <i id="xpFill"></i>
   </div>
-</header>
+</div>
 
-<!-- ───────────────────────── 본문 ───────────────────────── -->
+<!-- ───────────── 본문 ───────────── -->
 <div class="layout">
-
-  <!-- 왼쪽: 챕터 목록 -->
-  <aside class="sidebar" id="sidebar">
-    <div class="sidebar-head">
-      <span>여정</span>
-      <span class="sidebar-progress" id="sideProgress">0%</span>
-    </div>
-    <nav id="chapterNav"></nav>
-    <div class="sidebar-foot">
+  <aside class="sidebar" id="sidebar" aria-label="챕터">
+    <div class="sidebar-inner">
+      <div class="sidebar-head">
+        <span>여정</span>
+        <span class="tabular" id="sideProgress">0%</span>
+      </div>
+      <nav id="chapterNav"></nav>
       <div class="badgebox">
         <div class="badgebox-title">획득한 배지</div>
         <div class="badges" id="badges"><span class="badge-empty">아직 없어요</span></div>
@@ -54,29 +55,42 @@
     </div>
   </aside>
 
-  <!-- 오른쪽: 무대 -->
   <main class="stage" id="stage"></main>
-
 </div>
 
-<!-- ───────────────────────── 치트시트 모달 ───────────────────────── -->
-<div class="modal-backdrop" id="cheatModal" hidden>
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="cheatTitle">
-    <div class="modal-head">
-      <h2 id="cheatTitle">단축키 치트시트</h2>
-      <button class="ghost" id="cheatClose">닫기 ✕</button>
+<!-- ───────────── 푸터 (파치먼트) ───────────── -->
+<footer class="sitefoot">
+  <div class="sitefoot-inner">
+    <p class="foot-lead">맥북 스타터팩</p>
+    <p class="foot-fine">
+      맥북을 처음 쓰는 사람을 위한 인터랙티브 퀘스트 가이드입니다.
+      키 입력과 트랙패드 제스처 판정은 macOS의 브라우저에서 동작합니다.
+    </p>
+    <p class="foot-fine">
+      진행 상황은 이 브라우저에만 저장되며 어디로도 전송되지 않습니다.
+    </p>
+    <div class="foot-legal">
+      <span>Apple, macOS, MacBook, Finder는 Apple Inc.의 상표입니다. 이 프로젝트는 Apple과 무관한 비공식 학습 자료입니다.</span>
     </div>
-    <div class="modal-body" id="cheatBody"></div>
-    <div class="modal-foot">
-      <span class="muted">⌘P 로 인쇄하면 책상 옆에 붙여둘 수 있어요.</span>
-      <button class="primary" id="cheatPrint">인쇄하기</button>
+  </div>
+</footer>
+
+<!-- ───────────── 치트시트 ───────────── -->
+<div class="sheet-backdrop" id="cheatModal" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="cheatTitle">
+    <div class="sheet-head">
+      <h2 id="cheatTitle">단축키 치트시트</h2>
+      <button class="btn-utility" id="cheatClose">닫기</button>
+    </div>
+    <div class="sheet-body" id="cheatBody"></div>
+    <div class="sheet-foot">
+      <span class="fineprint">인쇄해서 책상 옆에 붙여두세요.</span>
+      <button class="btn-pill" id="cheatPrint">인쇄하기</button>
     </div>
   </div>
 </div>
 
-<!-- 토스트 -->
 <div class="toastwrap" id="toastwrap"></div>
-<!-- 색종이 -->
 <div class="confetti" id="confetti" aria-hidden="true"></div>
 
 <script src="quests.js"></script>
