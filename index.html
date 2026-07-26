@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>맥북 스타터팩 — 처음 쓰는 사람을 위한 인터랙티브 퀘스트</title>
+<meta name="description" content="맥북을 처음 산 사람을 위한 퀘스트형 인터랙티브 가이드. 단축키와 트랙패드 제스처를 직접 눌러보며 배웁니다." />
+<meta name="color-scheme" content="dark" />
+<link rel="stylesheet" href="styles.css" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💻</text></svg>" />
+</head>
+<body>
+
+<!-- ───────────────────────── 상단 바 ───────────────────────── -->
+<header class="topbar">
+  <button class="brand" id="brandBtn" title="처음 화면으로">
+    <span class="brand-logo" aria-hidden="true">💻</span>
+    <span class="brand-text">
+      <strong>맥북 스타터팩</strong>
+      <small>MacBook Quest</small>
+    </span>
+  </button>
+
+  <div class="xpwrap" id="xpwrap">
+    <div class="xpline">
+      <span class="lvl" id="lvlBadge">Lv.1</span>
+      <span class="rank" id="rankName">맥린이</span>
+      <span class="xptext" id="xpText">0 / 100 XP</span>
+    </div>
+    <div class="xpbar"><div class="xpbar-fill" id="xpFill"></div></div>
+  </div>
+
+  <div class="topactions">
+    <button class="ghost" id="cheatBtn" title="단축키 치트시트">📋 치트시트</button>
+    <button class="ghost" id="resetBtn" title="진행 상황 초기화">↺ 초기화</button>
+  </div>
+</header>
+
+<!-- ───────────────────────── 본문 ───────────────────────── -->
+<div class="layout">
+
+  <!-- 왼쪽: 챕터 목록 -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-head">
+      <span>여정</span>
+      <span class="sidebar-progress" id="sideProgress">0%</span>
+    </div>
+    <nav id="chapterNav"></nav>
+    <div class="sidebar-foot">
+      <div class="badgebox">
+        <div class="badgebox-title">획득한 배지</div>
+        <div class="badges" id="badges"><span class="badge-empty">아직 없어요</span></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- 오른쪽: 무대 -->
+  <main class="stage" id="stage"></main>
+
+</div>
+
+<!-- ───────────────────────── 치트시트 모달 ───────────────────────── -->
+<div class="modal-backdrop" id="cheatModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="cheatTitle">
+    <div class="modal-head">
+      <h2 id="cheatTitle">단축키 치트시트</h2>
+      <button class="ghost" id="cheatClose">닫기 ✕</button>
+    </div>
+    <div class="modal-body" id="cheatBody"></div>
+    <div class="modal-foot">
+      <span class="muted">⌘P 로 인쇄하면 책상 옆에 붙여둘 수 있어요.</span>
+      <button class="primary" id="cheatPrint">인쇄하기</button>
+    </div>
+  </div>
+</div>
+
+<!-- 토스트 -->
+<div class="toastwrap" id="toastwrap"></div>
+<!-- 색종이 -->
+<div class="confetti" id="confetti" aria-hidden="true"></div>
+
+<script src="quests.js"></script>
+<script src="engine.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
