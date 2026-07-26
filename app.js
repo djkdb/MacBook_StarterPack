@@ -208,6 +208,7 @@ function renderHome() {
       <div class="tile-inner">
         <h1>맥북, 처음이시죠?</h1>
         <p class="tile-lead">설명서를 읽는 대신 직접 눌러보면서 배웁니다.</p>
+        <p class="tile-badge">${TARGET_OS.full} 기준</p>
         <div class="tile-actions">
           <button class="btn-pill hero" id="startBtn">${cleared ? '이어서 하기' : '퀘스트 시작하기'}</button>
           <button class="btn-ghost" id="reviewBtn">치트시트 보기</button>
@@ -219,11 +220,12 @@ function renderHome() {
           <div><b class="tabular">${TOTAL_XP}</b><small>총 XP</small></div>
           <div><b class="tabular">${cleared}</b><small>클리어</small></div>
         </div>
-        ${Engine.isMac ? '' : `
-          <div class="notice">
+        <div class="notice">
+          ${TARGET_OS.note}
+          ${Engine.isMac ? '' : `<br/><br/>
             지금 맥이 아닌 기기에서 열고 계신 것 같습니다. 내용은 그대로 보실 수 있지만,
-            키 입력과 트랙패드 제스처 판정은 macOS의 브라우저에서 동작합니다.
-          </div>`}
+            키 입력과 트랙패드 제스처 판정은 macOS의 브라우저에서 동작합니다.`}
+        </div>
       </div>
     </section>`;
 
@@ -521,6 +523,7 @@ function closeCheat() { $('#cheatModal').hidden = true; }
 function boot() {
   State.load();
   Engine.installGuards();
+  $('#footOs').textContent = TARGET_OS.full + ' 기준';
 
   if (State.data.started && State.data.last && !ALL.every(q => State.isCleared(q.id))) {
     goTo(State.data.last);
