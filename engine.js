@@ -378,6 +378,34 @@ const Engine = (() => {
       return () => dz.removeEventListener('paste', onPaste);
     },
 
+    /* 클립보드 텍스트 붙여넣기 (유니버설 클립보드 확인용) */
+    pasteText(q, c, box, api) {
+      const pad = h('div','padzone');
+      pad.innerHTML = `
+        <div class="dropzone" id="dz" tabindex="0" contenteditable="true" spellcheck="false"
+             data-ph="여기를 클릭한 뒤 ⌘V 를 누르세요"></div>
+        <p class="padhint">${c.hint || ''}</p>`;
+      box.appendChild(pad);
+      const dz = pad.querySelector('#dz');
+
+      const onPaste = (e) => {
+        e.preventDefault();
+        const text = ((e.clipboardData && e.clipboardData.getData('text/plain')) || '').trim();
+        dz.textContent = text;
+        if (!text) return api.note('클립보드가 비어 있습니다.');
+        if (c.match && !new RegExp(c.match).test(text)) {
+          return api.note(`"${c.expectLabel || c.match}" 가 아니네요. 아이폰에서 복사한 내용이 맞는지 확인해보세요.`);
+        }
+        if (text.length < (c.minLen || 2)) {
+          return api.note('내용이 너무 짧습니다. 조금 더 긴 문장을 복사해보세요.');
+        }
+        api.note('클립보드에서 텍스트를 확인했습니다.');
+        api.success();
+      };
+      dz.addEventListener('paste', onPaste);
+      return () => dz.removeEventListener('paste', onPaste);
+    },
+
     /* 이모지 입력 */
     emoji(q, c, box, api) {
       const pad = h('div','padzone');

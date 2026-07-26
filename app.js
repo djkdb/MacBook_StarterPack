@@ -41,9 +41,14 @@ CHAPTERS.forEach((ch, ci) => ch.quests.forEach((q, qi) => {
 const byId = Object.fromEntries(ALL.map(q => [q.id, q]));
 const TOTAL_XP = ALL.reduce((s,q) => s + q.xp, 0);
 
-/* 홈 타일의 밝기 리듬 — 색이 바뀌는 것 자체가 섹션 구분선 */
-const TILE_CYCLE = ['dark','light','dark-2','parchment','dark-3','light','dark','parchment','dark-2'];
-const tileTone = (i) => TILE_CYCLE[i % TILE_CYCLE.length];
+/* 홈 타일의 밝기 리듬 — 색이 바뀌는 것 자체가 섹션 구분선.
+   짝수는 어두운 타일, 홀수는 밝은 타일로 두어 챕터가 몇 개든 반드시 교차합니다.
+   같은 계열이 연달아 올 때는 근접한 톤끼리 미세하게 어긋나도록 돌려 씁니다. */
+const DARK_TONES  = ['dark', 'dark-2', 'dark-3'];
+const LIGHT_TONES = ['light', 'parchment'];
+const tileTone = (i) => (i % 2 === 0)
+  ? DARK_TONES[Math.floor(i / 2) % DARK_TONES.length]
+  : LIGHT_TONES[Math.floor(i / 2) % LIGHT_TONES.length];
 const isDarkTone = (t) => t.startsWith('dark');
 
 /* ─────────── 레벨 계산 ─────────── */
