@@ -501,8 +501,20 @@ const Engine = (() => {
       const hint = pad.querySelector('#ahint');
       const norm = (v) => v.replace(/[\s,]/g,'').toLowerCase();
 
+      // accept: 정답 목록과 정확히 일치 / range: 그럴듯한 숫자 범위 안이면 인정
+      // (기기마다 답이 다른 "내 저장 공간은 몇 GB?" 같은 질문에 쓰입니다)
+      const isCorrect = () => {
+        const v = norm(inp.value);
+        if (c.accept && c.accept.some(a => norm(a) === v)) return true;
+        if (c.range) {
+          const n = parseFloat(v.replace(/[^0-9.]/g, ''));
+          return Number.isFinite(n) && n >= c.range[0] && n <= c.range[1];
+        }
+        return false;
+      };
+
       const submit = () => {
-        if (c.accept.some(a => norm(a) === norm(inp.value))) api.success();
+        if (isCorrect()) api.success();
         else {
           inp.classList.add('shake');
           hint.textContent = '아직 아니에요. ' + (c.hint || '');

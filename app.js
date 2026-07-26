@@ -51,6 +51,20 @@ const tileTone = (i) => (i % 2 === 0)
   : LIGHT_TONES[Math.floor(i / 2) % LIGHT_TONES.length];
 const isDarkTone = (t) => t.startsWith('dark');
 
+/* 브라우저가 스스로 통과 여부를 판정할 수 있는 방식들.
+   시스템 설정을 바꾸는 퀘스트는 원리상 감지가 불가능해서, 챕터마다 성격이 꽤 다릅니다.
+   그 차이를 홈에서 미리 알려주기 위해 씁니다. */
+const AUTO_TYPES = new Set([
+  'mod','allmods','combo','editor','scroll','pinch','contextmenu',
+  'pasteImage','pasteText','emoji','answer','quiz','blur'
+]);
+const chapterKind = (ch) => {
+  const auto = ch.quests.filter(q => AUTO_TYPES.has(q.check.t)).length;
+  return auto / ch.quests.length >= 0.6
+    ? '직접 눌러보며 익히는 챕터'
+    : '설정을 따라 하며 점검하는 챕터';
+};
+
 /* ─────────── 레벨 계산 ─────────── */
 function rankOf(xp) {
   let i = 0;
@@ -170,6 +184,18 @@ function renderSidebar() {
     nav.appendChild(item);
   });
 
+  // 퀘스트가 96개라 레일이 길어졌습니다. 현재 퀘스트가 레일 밖에 있으면
+  // 스스로 스크롤해서 "내가 어디쯤인지" 항상 보이게 합니다.
+  const active = $('.qitem.active', nav);
+  if (active) {
+    const rail = $('.sidebar-inner');
+    const rr = rail.getBoundingClientRect();
+    const ar = active.getBoundingClientRect();
+    if (ar.top < rr.top || ar.bottom > rr.bottom) {
+      rail.scrollTop += (ar.top - rr.top) - rail.clientHeight / 2 + ar.height / 2;
+    }
+  }
+
   const bwrap = $('#badges');
   const earned = CHAPTERS.filter(ch => ch.quests.every(q => State.isDone(q.id)));
   if (!earned.length) bwrap.innerHTML = '<span class="badge-empty">아직 없어요</span>';
@@ -245,7 +271,10 @@ function renderHome() {
           <p class="tile-lead">${ch.tagline}</p>
           <div class="tile-product">${ch.icon}</div>
           <div class="tile-progress"><i style="width:${done / all * 100}%"></i></div>
-          <p class="tile-note">${all}개 퀘스트 · ${done}개 완료</p>
+          <p class="tile-note">
+            ${all}개 퀘스트 · ${done}개 완료
+            <br/><span class="tile-kind">${chapterKind(ch)}</span>
+          </p>
           <div class="tile-actions">
             <button class="btn-pill lg" data-ci="${i}">${label}</button>
           </div>
@@ -525,8 +554,11 @@ function boot() {
   Engine.installGuards();
   $('#footOs').textContent = TARGET_OS.full + ' 기준';
 
+  // 이어하기: 마지막으로 "본" 퀘스트가 이미 클리어된 상태라면
+  // 끝난 화면을 다시 보여주지 말고 다음 할 일로 데려갑니다.
   if (State.data.started && State.data.last && !ALL.every(q => State.isCleared(q.id))) {
-    goTo(State.data.last);
+    const last = byId[State.data.last];
+    goTo(last && !State.isCleared(last.id) ? last.id : firstUncleared().id);
   } else {
     renderHome();
   }

@@ -491,6 +491,9 @@ body[data-view="home"] .sidebar { display: none; }
 .tile.dark-2 .tile-note,
 .tile.dark-3 .tile-note { color: var(--body-muted); }
 
+/* 챕터의 성격 (손으로 익히는 곳 / 설정을 점검하는 곳) */
+.tile-kind { font-size: 12px; letter-spacing: -0.12px; opacity: .7; }
+
 /* 챕터 아이콘 = 이 시스템의 "제품 렌더".
    표면 위에 놓인 제품에만 허용되는 단 하나의 그림자를 여기에 쓴다. */
 .tile-product {
@@ -719,7 +722,7 @@ body[data-view="quest"] .stage {
 
 /* 스크롤 / 스와이프 */
 .scrollbox {
-  height: 200px;
+  height: 176px;
   overflow-y: auto;
   overscroll-behavior: contain;
   text-align: left;
