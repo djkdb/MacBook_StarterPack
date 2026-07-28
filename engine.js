@@ -218,6 +218,75 @@ const Engine = (() => {
       return () => { window.removeEventListener('keydown', onDown); window.removeEventListener('keyup', onUp); };
     },
 
+    /* 연속 조합 — 보스전과 복습 관문.
+       하나씩 따로 아는 것과 이어서 쓰는 것은 다른 능력입니다. 순서대로 전부
+       눌러야 통과하고, 중간에 다른 조합을 누르면 처음으로 돌아갑니다.
+       틀려도 잃는 것은 없습니다. 되돌아갈 뿐이라 부담 없이 다시 하면 됩니다. */
+    chain(q, c, box, api) {
+      const steps = (c.steps || []).map(s => ({ ...s, parsed: parseSpec(s.spec) }));
+      if (!steps.length) {
+        box.appendChild(h('p','muted','(연습할 단축키를 찾지 못했습니다)'));
+        return () => {};
+      }
+
+      const pad = h('div','padzone');
+      pad.innerHTML = `
+        <ol class="chainsteps">${steps.map((s, i) => `
+          <li data-i="${i}">
+            <span class="chain-mark">${i + 1}</span>
+            <kbd>${symbols(s.spec)}</kbd>
+            <span class="chain-label">${s.label || ''}</span>
+          </li>`).join('')}</ol>
+        <p class="padhint">${c.label || '위에서부터 <b>순서대로</b> 눌러보세요'}</p>
+        <p class="livekey" id="livekey">&nbsp;</p>`;
+      box.appendChild(pad);
+
+      const live = pad.querySelector('#livekey');
+      const items = [...pad.querySelectorAll('.chainsteps li')];
+      let at = 0;
+
+      const paint = () => {
+        items.forEach((li, i) => {
+          li.classList.toggle('hit', i < at);
+          li.classList.toggle('now', i === at);
+        });
+        api.progress(at / steps.length);
+      };
+      paint();
+
+      const restart = (why) => {
+        at = 0; paint();
+        live.textContent = why;
+        pad.classList.add('miss');
+        setTimeout(() => pad.classList.remove('miss'), 300);
+      };
+
+      const onDown = (e) => {
+        if (['Meta','Alt','Control','Shift'].includes(e.key)) return;
+
+        if (matches(e, steps[at].parsed)) {
+          e.preventDefault();
+          at++;
+          if (at >= steps.length) {
+            paint();
+            live.textContent = '전부 이어서 해냈습니다.';
+            api.success();
+            return;
+          }
+          paint();
+          live.textContent = `${at} / ${steps.length} — 다음은 ${symbols(steps[at].spec)}`;
+          return;
+        }
+
+        // 수식어가 하나도 없는 평범한 타이핑은 흐름을 깨지 않습니다.
+        if (!(e.metaKey || e.altKey || e.ctrlKey)) return;
+        if (at > 0) restart(`${symbols(steps[at].spec)} 차례였어요. 처음부터 다시.`);
+      };
+
+      window.addEventListener('keydown', onDown);
+      return () => window.removeEventListener('keydown', onDown);
+    },
+
     /* 단축키 조합 */
     combo(q, c, box, api) {
       const spec = parseSpec(c.spec);

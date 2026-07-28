@@ -122,6 +122,18 @@ const CHAPTERS = [
     { id:'k-comma', title:'앱 환경설정 열기', sub:'⌘,', xp:15, tip:'거의 모든 맥 앱에서 통하는 마법의 단축키입니다. 설정 메뉴를 찾아 헤맬 필요가 없어요.', how:['⌘ 를 누른 채 쉼표(,) 키를 누르세요.'], check:{ t:'combo', spec:'cmd+,' } },
     { id:'k-print', title:'인쇄 / PDF로 저장', sub:'⌘P', xp:10, tip:'맥은 인쇄 창 왼쪽 아래에서 "PDF로 저장"을 고를 수 있습니다. 별도 프로그램이 필요 없어요.', how:['⌘ 를 누른 채 P 를 누르세요.'], check:{ t:'combo', spec:'cmd+p' } },
     {
+      id:'k-boss', title:'👑 보스 — 손이 기억하는지', sub:'다섯 개를 이어서', xp:50, boss:true,
+      how:['따로 아는 것과 <b>이어서 쓰는 것</b>은 다른 능력입니다.','아래 다섯 개를 <b>순서대로</b> 눌러보세요. 중간에 다른 조합을 누르면 처음으로 돌아갑니다.','틀려도 잃는 건 없어요. 그냥 다시 하면 됩니다.'],
+      tip:'실제로 문서를 고칠 때 이 다섯 개는 거의 이 순서로 붙어서 나옵니다. 전체 선택하고, 복사하고, 붙여넣고, 아니다 싶으면 되돌리고, 아니 아까 게 맞았네 하고 다시 실행하고요.',
+      check:{ t:'chain', steps:[
+        { spec:'cmd+a',       label:'전체 선택' },
+        { spec:'cmd+c',       label:'복사' },
+        { spec:'cmd+v',       label:'붙여넣기' },
+        { spec:'cmd+z',       label:'되돌리기' },
+        { spec:'cmd+shift+z', label:'다시 실행' }
+      ] }
+    },
+    {
       id:'k-quiz', title:'기본기 점검', sub:'', xp:15,
       check:{
         t:'quiz',
@@ -206,6 +218,18 @@ const CHAPTERS = [
       check: { t:'answer', placeholder:'mbsp 를 치고 스페이스',
                accept:['맥북 스타터팩'],
                hint:'등록한 뒤 스페이스바까지 눌러야 바뀝니다. 크롬에서 안 되면 사파리에서 열어보세요.' }
+    },
+    {
+      id:'t-boss', title:'👑 보스 — 커서를 손끝으로', sub:'다섯 개를 이어서', xp:50, boss:true,
+      how:['이 챕터에서 배운 커서 조작을 <b>순서대로</b> 이어서 눌러보세요.','중간에 다른 조합을 누르면 처음으로 돌아갑니다. 부담 없이 다시 하세요.'],
+      tip:'⌘ 는 줄 단위, ⌥ 는 단어 단위. 이 규칙 하나만 잡고 있으면 다섯 개가 아니라 열 개도 손이 알아서 갑니다.',
+      check:{ t:'chain', steps:[
+        { spec:'cmd+left',      label:'줄 맨 앞으로' },
+        { spec:'opt+right',     label:'단어 건너뛰기' },
+        { spec:'opt+backspace', label:'단어 하나 지우기' },
+        { spec:'cmd+shift+right', label:'줄 끝까지 선택' },
+        { spec:'cmd+backspace', label:'줄 전체 지우기' }
+      ] }
     },
     {
       id:'t-quiz', title:'텍스트 편집 점검', sub:'', xp:15,
@@ -338,6 +362,12 @@ const CHAPTERS = [
   tagline: '⌘Space 하나로 시작하는 모든 일.',
   intro: '앱 아이콘을 찾아 클릭하는 건 초보의 방식입니다. 맥 고수는 전부 여기서 시작해요. 앱 실행, 계산, 단위 변환, 파일 검색이 한 창구에서 됩니다.',
   quests: [
+    {
+      id:'rv-1', title:'복습 관문 · 첫 번째', sub:'앞에서 배운 것 세 개', xp:20,
+      how:['새 챕터로 들어가기 전에, 앞에서 배운 단축키 세 개를 다시 꺼내 봅니다.','매번 다른 것이 나옵니다. 순서대로 눌러주세요.'],
+      tip:'외운 것은 사흘이면 흐려지고, 손이 기억한 것은 남습니다. 이 관문이 몇 챕터마다 한 번씩 나오는 이유예요.',
+      check:{ t:'review', count:3 }
+    },
     {
       id:'sp-open', title:'Spotlight 열기', sub:'⌘Space', xp:20,
       how:['⌘ 를 누른 채 스페이스바 를 누르세요.','화면 가운데 검색창이 뜹니다.','esc 를 눌러 닫고 돌아오세요.'],
@@ -517,6 +547,12 @@ const CHAPTERS = [
   tagline: '탐색기와 가장 많이 다른 곳.',
   intro: '윈도우 탐색기와 가장 많이 다른 부분입니다. 특히 "파일 잘라내기"에서 다들 한 번씩 막혀요.',
   quests: [
+    {
+      id:'rv-2', title:'복습 관문 · 두 번째', sub:'앞에서 배운 것 네 개', xp:20,
+      how:['Finder로 들어가기 전에 한 번 더 손을 풀고 갑니다.','앞 챕터들에서 배운 단축키 네 개를 순서대로 눌러주세요.'],
+      tip:'여기서 막히는 게 있다면 그건 잊은 게 아니라 아직 손에 안 붙은 겁니다. 치트시트에서 그 줄만 다시 보고 오세요.',
+      check:{ t:'review', count:4 }
+    },
     {
       id:'f-quicklook', title:'훑어보기 (Quick Look)', sub:'스페이스바 한 번', xp:20,
       how:[
@@ -969,6 +1005,12 @@ const CHAPTERS = [
   intro: '마지막 챕터입니다. 지금 10분만 투자하면 앞으로 몇 년이 편해지는 설정들이에요. 하나씩 직접 해보고 체크하세요.',
   quests: [
     {
+      id:'rv-3', title:'복습 관문 · 마지막', sub:'지금까지 배운 것 다섯 개', xp:25,
+      how:['마지막 챕터입니다. 여기까지 온 손이 무엇을 기억하는지 확인하고 들어갑니다.','다섯 개를 순서대로 눌러주세요.'],
+      tip:'이 다섯 개가 물 흐르듯 나왔다면, 이제 단축키를 "외워서 쓰는" 단계는 지난 겁니다.',
+      check:{ t:'review', count:5 }
+    },
+    {
       id:'s-battery', title:'배터리 오래 쓰기', sub:'가장 많이 오해받는 것', xp:20,
       how:['시스템 설정 > 배터리 로 갑니다.','배터리 상태 옆 ⓘ 를 눌러 "배터리 충전 최적화" 가 켜져 있는지 확인하고, 아래 문제를 풀어보세요.'],
       check:{
@@ -1119,16 +1161,16 @@ const CHAPTERS = [
 const RANKS = [
   { xp:    0, name: '맥린이',          icon:'🐣' },
   { xp:   75, name: '수식어 견습생',      icon:'🔰' },
-  { xp:  200, name: '단축키 수련생',      icon:'⌨️' },
-  { xp:  385, name: '텍스트 편집자',      icon:'✍️' },
-  { xp:  645, name: '트랙패드 유단자',     icon:'🖐️' },
-  { xp:  775, name: 'Spotlight 술사', icon:'🔍' },
-  { xp:  940, name: '창 정리의 달인',     icon:'🪟' },
-  { xp: 1085, name: '스크린샷 저격수',     icon:'📸' },
-  { xp: 1420, name: 'Finder 항해사',   icon:'🧭' },
-  { xp: 1790, name: '생태계 연결자',      icon:'🔗' },
-  { xp: 1990, name: '용량 관리인',       icon:'💾' },
-  { xp: 2285, name: '맥북 마스터',       icon:'🏆' }
+  { xp:  250, name: '단축키 수련생',      icon:'⌨️' },
+  { xp:  485, name: '텍스트 편집자',      icon:'✍️' },
+  { xp:  745, name: '트랙패드 유단자',     icon:'🖐️' },
+  { xp:  895, name: 'Spotlight 술사', icon:'🔍' },
+  { xp:  1060, name: '창 정리의 달인',     icon:'🪟' },
+  { xp: 1205, name: '스크린샷 저격수',     icon:'📸' },
+  { xp: 1560, name: 'Finder 항해사',   icon:'🧭' },
+  { xp: 1930, name: '생태계 연결자',      icon:'🔗' },
+  { xp: 2130, name: '용량 관리인',       icon:'💾' },
+  { xp: 2450, name: '맥북 마스터',       icon:'🏆' }
 ];
 
 /* 치트시트에만 실리는 보너스 단축키 (퀘스트로는 다루지 않지만 알아두면 좋은 것) */

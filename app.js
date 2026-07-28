@@ -73,7 +73,7 @@ const isDarkTone = (t) => t.startsWith('dark');
    실제로는 네 개만 채점되는 트랙패드 챕터가 "직접 눌러보며 익히는 챕터"로
    표시돼서, 홈에서 한 약속과 안에서 겪는 경험이 어긋납니다. */
 const AUTO_TYPES = new Set([
-  'mod','allmods','combo','editor','scroll','pinch','contextmenu',
+  'mod','allmods','combo','chain','review','editor','scroll','pinch','contextmenu',
   'pasteImage','pasteText','emoji','answer'
 ]);
 const chapterKind = (ch) => {
@@ -353,6 +353,25 @@ function goTo(id) {
   renderHeader();
 }
 
+/* ─────────── 복습 관문 ───────────
+   앞 챕터에서 실제로 눌러본 단축키를 다시 꺼내옵니다. 새 콘텐츠를 쓰는 게 아니라
+   이미 깬 퀘스트를 재료로 쓰기 때문에, 앞 챕터가 "지나간 것"이 아니라 "계속 쓰는 것"이
+   됩니다. 매번 다른 조합이 나오도록 섞고, 클리어한 것을 우선으로 뽑습니다. */
+function buildReview(q) {
+  const pool = ALL.filter(x => x._ci < q._ci && x.check.t === 'combo' && x.check.spec);
+  const shuffle = (arr) => arr.map(v => [Math.random(), v]).sort((a,b) => a[0]-b[0]).map(v => v[1]);
+
+  const done   = shuffle(pool.filter(x => State.isDone(x.id)));
+  const rest   = shuffle(pool.filter(x => !State.isDone(x.id)));
+  const picked = [...done, ...rest].slice(0, q.check.count || 3);
+
+  return {
+    t: 'chain',
+    label: '앞에서 배운 것들입니다. <b>순서대로</b> 눌러보세요',
+    steps: picked.map(x => ({ spec: x.check.spec, label: x.title }))
+  };
+}
+
 function renderQuest(q) {
   const ch = q._ch;
   const already = State.isDone(q.id);
@@ -406,7 +425,9 @@ function renderQuest(q) {
     note: (html) => { note.hidden = false; note.innerHTML = html; }
   };
 
-  teardown = Engine.mount(q, $('#practice'), api);
+  // 복습 관문은 콘텐츠가 아니라 "지금까지 배운 것"에서 매번 새로 만들어집니다.
+  teardown = Engine.mount(q.check.t === 'review' ? { ...q, check: buildReview(q) } : q,
+                          $('#practice'), api);
 
   $('#prevBtn').addEventListener('click', () => { if (q._flat > 0) goTo(ALL[q._flat-1].id); });
   $('#homeBtn').addEventListener('click', renderHome);
@@ -472,6 +493,33 @@ function renderChapterEnd(ch) {
   const ci = CHAPTERS.indexOf(ch);
   const nextCh = CHAPTERS[ci + 1];
 
+  // 레벨업이 칭호만 바뀌는 일이 되지 않도록, 이 챕터로 무엇이 늘었는지 함께 보여줍니다.
+  const xp        = State.data.xp;
+  const earned    = ch.quests.filter(q => State.isDone(q.id)).reduce((s, q) => s + q.xp, 0);
+  const rankNow   = rankOf(xp);
+  const rankBefore= rankOf(xp - earned);
+  const roseUp    = rankNow.idx > rankBefore.idx;
+
+  const sheet     = cheatRowsOf(ch);
+  const addedLines= sheet.unlocked.length + sheet.extras.length;
+  const toNext    = rankNow.next ? rankNow.next.xp - xp : 0;
+
+  const rewardBlock = `
+    <div class="reward">
+      ${roseUp ? `
+        <div class="reward-rank">
+          <span class="reward-eyebrow">새 칭호</span>
+          <strong>${rankNow.icon} ${rankNow.name}</strong>
+        </div>` : ''}
+      <ul class="reward-list">
+        <li><b>${b.icon} ${b.name}</b> 배지를 ${done === ch.quests.length ? '얻었습니다' : '아직 못 얻었습니다 — 건너뛴 퀘스트가 있어요'}</li>
+        ${addedLines ? `<li>치트시트에 <b class="tabular">${addedLines}줄</b>이 채워졌습니다${sheet.extras.length ? ' (보너스 단축키 포함)' : ''}</li>` : ''}
+        ${sheet.lockedCount ? `<li class="dim">이 챕터에서 아직 비어 있는 줄 ${sheet.lockedCount}개</li>` : ''}
+        ${rankNow.next ? `<li class="dim">다음 칭호 <b>${rankNow.next.name}</b> 까지 <span class="tabular">${toNext} XP</span></li>` : ''}
+      </ul>
+      <button class="btn-link sm" id="seeCheat">치트시트에서 확인하기</button>
+    </div>`;
+
   const v = el('div', 'tilestack');
   v.innerHTML = `
     <section class="tile light">
@@ -492,6 +540,8 @@ function renderChapterEnd(ch) {
           </ul>
         </div>
 
+        ${rewardBlock}
+
         <div class="tile-actions">
           ${nextCh ? `<button class="btn-pill lg" id="nextChBtn">다음 챕터 · ${nextCh.title}</button>` : ''}
           <button class="btn-ghost" id="backHome">여정 전체 보기</button>
@@ -501,7 +551,9 @@ function renderChapterEnd(ch) {
   $('#stage').appendChild(v);
 
   if (nextCh) $('#nextChBtn').addEventListener('click', () => goTo(nextCh.quests[0].id));
+  $('#seeCheat').addEventListener('click', openCheat);
   $('#backHome').addEventListener('click', renderHome);
+  if (roseUp) confetti(40);
   renderSidebar();
   renderHeader();
 }
@@ -565,18 +617,57 @@ function shortcutOf(q) {
   return null;
 }
 
+/* ─────────── 치트시트 ───────────
+   빈 종이로 시작해서 깬 퀘스트만 한 줄씩 채워집니다.
+   처음부터 전부 열어두면 답안지를 먼저 나눠주는 셈이고, 무엇보다
+   "인쇄해서 책상 옆에 붙여두세요"가 남이 준 표가 아니라 내가 채운 표가 됩니다.
+   보너스 단축키(CHEAT_EXTRA)는 그 챕터를 전부 깨야 열립니다. */
+function cheatRowsOf(ch) {
+  const own = ch.quests
+    .map(q => ({ q, sc: shortcutOf(q) }))
+    .filter(x => x.sc);
+  const chapterDone = ch.quests.every(q => State.isDone(q.id));
+  const extras = CHEAT_EXTRA[ch.id] || [];
+
+  return {
+    unlocked: own.filter(x => State.isDone(x.q.id)),
+    lockedCount: own.filter(x => !State.isDone(x.q.id)).length + (chapterDone ? 0 : extras.length),
+    extras: chapterDone ? extras : [],
+    total: own.length + extras.length
+  };
+}
+
 function openCheat() {
-  const body = $('#cheatBody');
-  body.innerHTML = CHAPTERS.map(ch => {
-    const rows = ch.quests.map(q => {
-      const sc = shortcutOf(q);
-      return sc ? `<tr><td class="sc"><kbd>${sc}</kbd></td><td>${q.title}</td></tr>` : '';
-    }).filter(Boolean).join('');
-    const extras = (CHEAT_EXTRA[ch.id] || []).map(([k, d]) =>
+  const parts = CHAPTERS.map(ch => {
+    const { unlocked, lockedCount, extras, total } = cheatRowsOf(ch);
+    if (!total) return null;
+
+    const rows = unlocked.map(x =>
+      `<tr><td class="sc"><kbd>${x.sc}</kbd></td><td>${x.q.title}</td></tr>`).join('')
+      + extras.map(([k, d]) =>
       `<tr><td class="sc"><kbd>${k}</kbd></td><td>${d}</td></tr>`).join('');
-    if (!rows && !extras) return '';
-    return `<section class="cheatsec"><h3>${ch.icon} ${ch.title}</h3><table>${rows}${extras}</table></section>`;
-  }).join('');
+
+    const filled = unlocked.length + extras.length;
+    const locked = lockedCount
+      ? `<p class="cheat-locked">아직 ${lockedCount}줄이 비어 있습니다 — 퀘스트를 깨면 채워집니다.</p>`
+      : '';
+
+    return `<section class="cheatsec">
+      <h3>${ch.icon} ${ch.title} <span class="cheat-count tabular">${filled}/${total}</span></h3>
+      ${rows ? `<table>${rows}</table>` : ''}
+      ${locked}
+    </section>`;
+  }).filter(Boolean);
+
+  const filled = CHAPTERS.reduce((s, ch) => { const r = cheatRowsOf(ch); return s + r.unlocked.length + r.extras.length; }, 0);
+  const total  = CHAPTERS.reduce((s, ch) => s + cheatRowsOf(ch).total, 0);
+
+  $('#cheatBody').innerHTML =
+    `<p class="cheat-lead">
+       ${filled === 0
+         ? '아직 비어 있습니다. 퀘스트를 깨면 이 표가 한 줄씩 채워집니다.'
+         : `<b class="tabular">${filled} / ${total}</b> 줄을 직접 채웠습니다.`}
+     </p>` + parts.join('');
   $('#cheatModal').hidden = false;
 }
 
