@@ -7,10 +7,23 @@ const STORE_KEY = 'macbook-starterpack.v1';
 const State = {
   data: { done: {}, skipped: {}, xp: 0, last: null, started: false },
 
+  /* 저장된 값은 남의 손을 탈 수 있습니다 — 확장 프로그램, 이전 버전, 직접 편집.
+     JSON.parse 를 통과해도 타입이 어긋나면 첫 렌더에서 터지고,
+     그러면 화면이 백지가 되어 사용자가 초기화 버튼조차 누를 수 없게 됩니다.
+     그래서 파싱 성공과 별개로 필드별 타입을 확인하고, 이상하면 그 필드만 버립니다. */
   load() {
     try {
       const raw = localStorage.getItem(STORE_KEY);
-      if (raw) Object.assign(this.data, JSON.parse(raw));
+      if (!raw) return;
+      const saved = JSON.parse(raw);
+      if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return;
+
+      const isMap = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
+      if (isMap(saved.done))    this.data.done    = saved.done;
+      if (isMap(saved.skipped)) this.data.skipped = saved.skipped;
+      if (Number.isFinite(saved.xp) && saved.xp >= 0) this.data.xp = saved.xp;
+      if (typeof saved.last === 'string') this.data.last = saved.last;
+      this.data.started = !!saved.started;
     } catch { /* 저장소를 못 쓰는 환경이면 그냥 메모리로 진행 */ }
   },
   save() {
@@ -51,18 +64,23 @@ const tileTone = (i) => (i % 2 === 0)
   : LIGHT_TONES[Math.floor(i / 2) % LIGHT_TONES.length];
 const isDarkTone = (t) => t.startsWith('dark');
 
-/* 브라우저가 스스로 통과 여부를 판정할 수 있는 방식들.
+/* 브라우저가 "한 대로 했는지"를 실제로 채점할 수 있는 방식들.
    시스템 설정을 바꾸는 퀘스트는 원리상 감지가 불가능해서, 챕터마다 성격이 꽤 다릅니다.
-   그 차이를 홈에서 미리 알려주기 위해 씁니다. */
+   그 차이를 홈에서 미리 알려주기 위해 씁니다.
+
+   quiz 와 blur 는 일부러 뺐습니다. 객관식은 손이 아니라 머리로 푸는 것이고,
+   blur 는 "다녀왔다"는 사실만 알 뿐 무엇을 했는지는 모릅니다. 둘을 세면
+   실제로는 네 개만 채점되는 트랙패드 챕터가 "직접 눌러보며 익히는 챕터"로
+   표시돼서, 홈에서 한 약속과 안에서 겪는 경험이 어긋납니다. */
 const AUTO_TYPES = new Set([
   'mod','allmods','combo','editor','scroll','pinch','contextmenu',
-  'pasteImage','pasteText','emoji','answer','quiz','blur'
+  'pasteImage','pasteText','emoji','answer'
 ]);
 const chapterKind = (ch) => {
   const auto = ch.quests.filter(q => AUTO_TYPES.has(q.check.t)).length;
   return auto / ch.quests.length >= 0.6
-    ? '직접 눌러보며 익히는 챕터'
-    : '설정을 따라 하며 점검하는 챕터';
+    ? '눌러보면 바로 채점되는 챕터'
+    : '직접 해보고 체크하는 챕터';
 };
 
 /* ─────────── 레벨 계산 ─────────── */
@@ -116,8 +134,16 @@ function renderHeader() {
 
   $('#rankName').textContent = r.icon + ' ' + r.name;
   $('#xpText').textContent = r.next ? `${xp} XP` : `${xp} XP · 완주`;
-  $('#xpFill').style.width = (xp / TOTAL_XP * 100) + '%';
+  const pct = Math.min(100, Math.round(xp / TOTAL_XP * 100));
+  $('#xpFill').style.width = pct + '%';
   $('#sideProgress').textContent = Math.round(cleared / ALL.length * 100) + '%';
+
+  // 진행 표시줄은 그림만으로는 읽히지 않습니다 — 값도 함께 노출합니다.
+  const bar = $('#xpFill').parentElement;
+  bar.setAttribute('aria-valuenow', String(pct));
+  bar.setAttribute('aria-valuemin', '0');
+  bar.setAttribute('aria-valuemax', '100');
+  bar.setAttribute('aria-valuetext', `${xp} XP · ${pct}%`);
 
   const btn = $('#resumeBtn');
   btn.textContent = allDone ? '치트시트' : (cleared ? '이어서 하기' : '시작하기');
@@ -169,10 +195,20 @@ function renderSidebar() {
         + (current && current.id === q.id ? ' active' : ''));
       // 레일에는 제목만 둡니다. 단축키는 퀘스트 화면·회고·치트시트에 이미 있고,
       // 오른쪽에 덧붙이면 제목이 줄바꿈될 때 줄이 어긋납니다.
+      // 레일은 유일한 임의 이동 수단입니다. 마우스로만 누를 수 있으면
+      // 키보드·스크린리더 사용자는 이전/다음으로만 115개를 훑어야 합니다.
+      li.tabIndex = 0;
+      li.setAttribute('role', 'button');
+      const state = State.isDone(q.id) ? '완료' : (State.isSkipped(q.id) ? '건너뜀' : '미완료');
+      li.setAttribute('aria-label', `${q.title} — ${state}`);
+      if (current && current.id === q.id) li.setAttribute('aria-current', 'true');
       li.innerHTML = `
-        <span class="qmark">${State.isDone(q.id) ? '✓' : (State.isSkipped(q.id) ? '–' : '○')}</span>
+        <span class="qmark" aria-hidden="true">${State.isDone(q.id) ? '✓' : (State.isSkipped(q.id) ? '–' : '○')}</span>
         <span class="qname">${q.title}</span>`;
       li.addEventListener('click', () => goTo(q.id));
+      li.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); goTo(q.id); }
+      });
       ul.appendChild(li);
     });
 
@@ -184,7 +220,7 @@ function renderSidebar() {
     nav.appendChild(item);
   });
 
-  // 퀘스트가 96개라 레일이 길어졌습니다. 현재 퀘스트가 레일 밖에 있으면
+  // 퀘스트가 115개라 레일이 길어졌습니다. 현재 퀘스트가 레일 밖에 있으면
   // 스스로 스크롤해서 "내가 어디쯤인지" 항상 보이게 합니다.
   const active = $('.qitem.active', nav);
   if (active) {
@@ -554,15 +590,9 @@ function boot() {
   Engine.installGuards();
   $('#footOs').textContent = TARGET_OS.full + ' 기준';
 
-  // 이어하기: 마지막으로 "본" 퀘스트가 이미 클리어된 상태라면
-  // 끝난 화면을 다시 보여주지 말고 다음 할 일로 데려갑니다.
-  if (State.data.started && State.data.last && !ALL.every(q => State.isCleared(q.id))) {
-    const last = byId[State.data.last];
-    goTo(last && !State.isCleared(last.id) ? last.id : firstUncleared().id);
-  } else {
-    renderHome();
-  }
-
+  // 내비게이션 배선을 첫 렌더보다 먼저 합니다.
+  // 렌더가 어떤 이유로든 실패하더라도 "초기화"는 살아 있어야,
+  // 사용자가 개발자 도구 없이 스스로 빠져나올 수 있습니다.
   $('#brandBtn').addEventListener('click', renderHome);
   $('#navHome').addEventListener('click', renderHome);
   $('#subnavTitle').addEventListener('click', renderHome);
@@ -581,6 +611,23 @@ function boot() {
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && !$('#cheatModal').hidden) closeCheat();
   });
+
+  // 이어하기: 마지막으로 "본" 퀘스트가 이미 클리어된 상태라면
+  // 끝난 화면을 다시 보여주지 말고 다음 할 일로 데려갑니다.
+  try {
+    if (State.data.started && State.data.last && !ALL.every(q => State.isCleared(q.id))) {
+      const last = byId[State.data.last];
+      goTo(last && !State.isCleared(last.id) ? last.id : firstUncleared().id);
+    } else {
+      renderHome();
+    }
+  } catch (err) {
+    // 여기까지 왔다는 건 저장된 값이 예상 밖이라는 뜻입니다.
+    // 백지로 두지 않고 처음 화면으로 되돌립니다.
+    console.error('진행 상황을 불러오지 못해 초기화합니다.', err);
+    State.reset();
+    renderHome();
+  }
 }
 
 document.addEventListener('DOMContentLoaded', boot);

@@ -77,14 +77,30 @@ const Engine = (() => {
 
   /* ─────────── 환경 감지 ─────────── */
 
-  const isMac = /Mac|iPhone|iPad/.test(navigator.platform || '')
-             || /Mac OS X/.test(navigator.userAgent);
+  // 여기서 묻는 것은 "애플 기기인가"가 아니라 "물리 키보드와 트랙패드로
+  // 판정을 받을 수 있는 기기인가" 입니다. 아이폰·아이패드는 애플 기기지만
+  // ⌘ 를 누를 수도, 세 손가락 제스처를 보낼 수도 없으므로 맥으로 치면 안 됩니다.
+  // (iPadOS 13+ 는 navigator.platform 이 'MacIntel' 이고 UA 에도 'Mac OS X' 가
+  //  들어오기 때문에, 터치 지원 여부로 한 번 더 걸러냅니다.)
+  const looksApple = /Mac/.test(navigator.platform || '') || /Mac OS X/.test(navigator.userAgent);
+  const isPhoneOrTablet = /iPhone|iPad|iPod/.test(navigator.platform || '')
+                       || /iPhone|iPad|iPod/.test(navigator.userAgent)
+                       || (looksApple && navigator.maxTouchPoints > 1);
+  const isMac = looksApple && !isPhoneOrTablet;
 
   /* ─────────── 브라우저 기본 동작 차단 ─────────── */
   // ⌘← (뒤로 가기), ⌘S (저장 대화상자) 등이 학습을 방해하지 않도록
   // 입력칸 밖에서의 ⌘ 조합은 기본 동작을 막습니다.
   // (⌘R 새로고침, ⌘T 새 탭 등 탈출구는 남겨둡니다.)
-  const ESCAPE_HATCH = new Set(['KeyR','KeyT','KeyN','KeyW','KeyQ']);
+  //
+  // ⌘C·⌘F·⌘+·⌘-·⌘0 도 막지 않습니다. 가이드 본문을 복사해 메모하고,
+  // 113개짜리 페이지에서 찾고, 글씨를 키우는 것은 학습을 방해하는 동작이
+  // 아니라 학습에 필요한 동작입니다. 특히 치트시트가 ⌘+ / ⌘0 을 직접
+  // 가르치고 있어서, 막아두면 배운 것이 이 앱에서만 안 되는 꼴이 됩니다.
+  const ESCAPE_HATCH = new Set([
+    'KeyR','KeyT','KeyN','KeyW','KeyQ',
+    'KeyC','KeyF','Equal','Minus','Digit0','NumpadAdd','NumpadSubtract','Numpad0'
+  ]);
 
   function installGuards() {
     document.addEventListener('keydown', (e) => {
@@ -246,18 +262,56 @@ const Engine = (() => {
       box.appendChild(pad);
       const stat = pad.querySelector('#blurstat');
 
+      // macOS 가 가로채는 동작(Spotlight, 미션 컨트롤 등)은 키 이벤트가 오지
+      // 않으므로 "다녀왔다"는 사실로만 판정합니다. 다만 그냥 다른 탭에 다녀와도
+      // 통과되면 아무것도 배우지 않고 진도가 나갑니다. 그래서 둘을 구분합니다 —
+      // 다른 앱으로 전환하면 창의 포커스만 잃고, 다른 탭으로 가면 문서가 숨겨집니다.
       let leftAt = 0;
-      const onBlur = () => { leftAt = Date.now(); stat.textContent = '화면을 벗어났습니다 — 돌아오면 완료돼요'; };
+      let hiddenWhileAway = false;
+      let missed = 0;
+
+      const onHide = () => { if (document.hidden && leftAt) hiddenWhileAway = true; };
+      const onBlur = () => {
+        leftAt = Date.now();
+        hiddenWhileAway = document.hidden;
+        stat.textContent = '화면을 벗어났습니다 — 돌아오면 완료돼요';
+      };
       const onFocus = () => {
         if (!leftAt) return;
         const dt = Date.now() - leftAt;
+        const wasTabSwitch = hiddenWhileAway;
         leftAt = 0;
-        if (dt >= 250) { stat.textContent = '돌아왔습니다!'; api.success(); }
-        else stat.textContent = '너무 빨랐어요. 다시 해볼까요?';
+        hiddenWhileAway = false;
+
+        if (dt < 250) { stat.textContent = '너무 빨랐어요. 다시 해볼까요?'; return; }
+        if (wasTabSwitch) {
+          stat.textContent = '다른 탭에 다녀오신 것 같아요. 위 안내대로 직접 해보세요.';
+          if (++missed >= 2) showFallback();
+          return;
+        }
+        stat.textContent = '돌아왔습니다!';
+        api.success();
       };
+
+      // 브라우저나 창 관리 방식에 따라 위 구분이 어긋날 수 있습니다.
+      // 그때 사용자가 갇히지 않도록, 두 번 어긋나면 직접 확인 버튼을 내어줍니다.
+      function showFallback() {
+        if (pad.querySelector('#blurmanual')) return;
+        const btn = h('button', 'checkbtn',
+          '<span class="checkbox">✓</span><span>직접 해봤어요</span>');
+        btn.id = 'blurmanual';
+        btn.addEventListener('click', () => api.success());
+        pad.appendChild(btn);
+      }
+
       window.addEventListener('blur', onBlur);
       window.addEventListener('focus', onFocus);
-      return () => { window.removeEventListener('blur', onBlur); window.removeEventListener('focus', onFocus); };
+      document.addEventListener('visibilitychange', onHide);
+      return () => {
+        window.removeEventListener('blur', onBlur);
+        window.removeEventListener('focus', onFocus);
+        document.removeEventListener('visibilitychange', onHide);
+      };
     },
 
     /* 트랙패드 스크롤 / 스와이프 */
