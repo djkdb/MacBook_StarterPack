@@ -879,6 +879,42 @@ body[data-view="quest"] .stage {
   75% { transform: translateX(6px); }
 }
 .answerrow { display: flex; gap: var(--s-sm); align-items: center; justify-content: center; flex-wrap: wrap; }
+.bigin.wide { max-width: 460px; }
+
+/* 자모 분리 비교표 */
+.nfdout { margin-top: var(--s-md); display: flex; flex-direction: column; gap: 1px; }
+.nfdrow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--s-md);
+  padding: 9px 14px;
+  background: var(--canvas-parchment);
+  font-size: 14px;
+  letter-spacing: -0.224px;
+}
+.nfdrow:first-child { border-radius: var(--r-sm) var(--r-sm) 0 0; }
+.nfdrow:last-child  { border-radius: 0 0 var(--r-sm) var(--r-sm); }
+.nfdrow b { font-weight: 400; color: var(--ink-80); }
+.nfdrow code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+  color: var(--primary);
+}
+
+/* 측정값 표시 — 키 반복 속도처럼 숫자가 실시간으로 바뀌는 판정에 쓴다 */
+.metric { margin-top: var(--s-md); text-align: center; }
+.metric b {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 44px;
+  font-weight: 600;
+  letter-spacing: -1px;
+  line-height: 1;
+  color: var(--primary);
+  font-variant-numeric: tabular-nums;
+}
+.metric small { display: block; margin-top: 6px; font-size: 13px; color: var(--ink-48); letter-spacing: -0.08px; }
 
 /* 텍스트 편집 */
 .editor {

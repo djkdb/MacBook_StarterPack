@@ -406,6 +406,51 @@ const Engine = (() => {
       return () => dz.removeEventListener('paste', onPaste);
     },
 
+    /* 한글 자모 분리(NFD) 확인 —
+     * macOS 는 파일 이름의 한글을 자음·모음으로 쪼개서 보관합니다(NFD).
+     * Finder 에서 복사해 온 이름을 붙여넣으면 그 사실이 눈에 보입니다.
+     * 붙여넣은 글자가 NFC 와 다르면 = 쪼개져 있다는 뜻입니다. */
+    nfd(q, c, box, api) {
+      const pad = h('div','padzone');
+      pad.innerHTML = `
+        <div class="dropzone" id="dz" tabindex="0" contenteditable="true" spellcheck="false"
+             data-ph="여기를 클릭한 뒤 ⌘V 를 누르세요"></div>
+        <div class="nfdout" id="out" hidden></div>
+        <p class="padhint" id="hint">${c.hint || ''}</p>`;
+      box.appendChild(pad);
+      const dz = pad.querySelector('#dz'), out = pad.querySelector('#out'), hint = pad.querySelector('#hint');
+
+      const onPaste = (e) => {
+        e.preventDefault();
+        const text = ((e.clipboardData && e.clipboardData.getData('text/plain')) || '').trim();
+        dz.textContent = text;
+        if (!text) return api.note('클립보드가 비어 있습니다.');
+        const nfc = text.normalize('NFC'), nfd = text.normalize('NFD');
+        // 쪼개진 한글은 조합용 자모(U+1100~)로 들어오므로 원문 그대로는 "가-힣"에 안 걸립니다.
+        // 합친 형태로 바꿔놓고 검사해야 두 경우가 모두 잡힙니다.
+        if (!/[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(nfc)) {
+          return api.note('한글이 들어간 이름이어야 합니다. 파일 이름을 한글로 바꾼 뒤 다시 복사해보세요.');
+        }
+        const decomposed = text !== nfc;   // 붙여넣은 원본이 이미 쪼개져 있는가
+
+        out.hidden = false;
+        out.innerHTML = `
+          <div class="nfdrow"><b>붙여넣은 그대로</b><code>${text.length}자</code></div>
+          <div class="nfdrow"><b>합쳐서 셀 때 (NFC)</b><code>${nfc.length}자</code></div>
+          <div class="nfdrow"><b>쪼개서 셀 때 (NFD)</b><code>${nfd.length}자</code></div>`;
+
+        if (decomposed) {
+          hint.innerHTML = '글자 수가 <b>NFD 쪽과 같습니다.</b> 맥이 한글을 쪼개서 보관하고 있다는 증거예요.';
+        } else {
+          hint.innerHTML = '이번엔 <b>합쳐진 상태(NFC)</b>로 들어왔습니다. 앱에 따라 붙여넣는 중에 합쳐지기도 해요 — '
+                         + '어느 쪽이든 두 방식이 따로 있다는 게 핵심입니다.';
+        }
+        api.success();
+      };
+      dz.addEventListener('paste', onPaste);
+      return () => dz.removeEventListener('paste', onPaste);
+    },
+
     /* 이모지 입력 */
     emoji(q, c, box, api) {
       const pad = h('div','padzone');
@@ -484,6 +529,47 @@ const Engine = (() => {
       reset();
 
       return () => document.removeEventListener('selectionchange', update);
+    },
+
+    /* 키 반복 속도 — 키를 꾹 눌렀을 때 OS 가 글자를 쏘아주는 간격을 잰다.
+     * 시스템 설정의 "키 반복 속도" 를 실제로 올렸는지 브라우저가 확인할 수 있는
+     * 몇 안 되는 설정 중 하나입니다. (반복 이벤트는 e.repeat === true 로 옵니다) */
+    keyrepeat(q, c, box, api) {
+      const limit = c.ms || 40;      // 이 간격보다 빠르면 통과
+      const need  = c.count || 6;    // 최소 이만큼 반복돼야 측정으로 인정
+      const pad = h('div','padzone');
+      pad.innerHTML = `
+        <input class="bigin wide" id="kr" placeholder="여기를 클릭한 뒤 아무 글자나 꾹 눌러보세요" autocomplete="off" />
+        <div class="metric"><b id="krv">—</b><small>반복 간격 (ms) · 낮을수록 빠름</small></div>
+        <p class="padhint" id="krh">${c.hint || '설정을 안 바꿨다면 여기서 바로 티가 납니다.'}</p>`;
+      box.appendChild(pad);
+
+      const inp = pad.querySelector('#kr'), val = pad.querySelector('#krv'), hint = pad.querySelector('#krh');
+      let stamps = [];
+
+      const onKey = (e) => {
+        if (e.key === 'Tab' || e.key === 'Enter') return;
+        if (!e.repeat) { stamps = []; val.textContent = '—'; return; }
+        stamps.push(performance.now());
+        if (stamps.length < 3) return;
+        // 첫 반복은 "반복 지연" 이 섞여 있으므로 버리고 중앙값을 쓴다
+        const gaps = [];
+        for (let i = 2; i < stamps.length; i++) gaps.push(stamps[i] - stamps[i-1]);
+        if (!gaps.length) return;
+        const med = gaps.slice().sort((a,b)=>a-b)[Math.floor(gaps.length/2)];
+        val.textContent = Math.round(med);
+        api.progress(Math.min(1, gaps.length / need));
+        if (gaps.length >= need - 1) {
+          if (med <= limit) api.success();
+          else hint.innerHTML = `아직 <b>${Math.round(med)}ms</b> 입니다. 시스템 설정에서 막대를 끝까지 밀어보세요.`;
+        }
+      };
+      const onUp = () => { stamps = []; };
+
+      inp.addEventListener('keydown', onKey);
+      inp.addEventListener('keyup', onUp);
+      setTimeout(() => inp.focus(), 60);
+      return () => {};
     },
 
     /* 정답 입력 */

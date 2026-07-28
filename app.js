@@ -56,7 +56,7 @@ const isDarkTone = (t) => t.startsWith('dark');
    그 차이를 홈에서 미리 알려주기 위해 씁니다. */
 const AUTO_TYPES = new Set([
   'mod','allmods','combo','editor','scroll','pinch','contextmenu',
-  'pasteImage','pasteText','emoji','answer','quiz','blur'
+  'pasteImage','pasteText','emoji','answer','quiz','blur','keyrepeat','nfd'
 ]);
 const chapterKind = (ch) => {
   const auto = ch.quests.filter(q => AUTO_TYPES.has(q.check.t)).length;
