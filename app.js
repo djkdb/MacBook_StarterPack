@@ -5,7 +5,7 @@
 const STORE_KEY = 'macbook-starterpack.v1';
 
 const State = {
-  data: { done: {}, skipped: {}, xp: 0, last: null, started: false },
+  data: { done: {}, skipped: {}, xp: 0, last: null, started: false, landed: false },
 
   /* 저장된 값은 남의 손을 탈 수 있습니다 — 확장 프로그램, 이전 버전, 직접 편집.
      JSON.parse 를 통과해도 타입이 어긋나면 첫 렌더에서 터지고,
@@ -24,6 +24,7 @@ const State = {
       if (Number.isFinite(saved.xp) && saved.xp >= 0) this.data.xp = saved.xp;
       if (typeof saved.last === 'string') this.data.last = saved.last;
       this.data.started = !!saved.started;
+      this.data.landed  = !!saved.landed;
     } catch { /* 저장소를 못 쓰는 환경이면 그냥 메모리로 진행 */ }
   },
   save() {
@@ -42,7 +43,7 @@ const State = {
     return true;
   },
   skip(id) { this.data.skipped[id] = true; this.save(); },
-  reset()  { this.data = { done:{}, skipped:{}, xp:0, last:null, started:false }; this.save(); }
+  reset()  { this.data = { done:{}, skipped:{}, xp:0, last:null, started:false, landed:false }; this.save(); }
 };
 
 /* ─────────── 퀘스트 색인 ─────────── */
@@ -257,6 +258,147 @@ function firstUncleared() {
   return ALL.find(q => !State.isCleared(q.id)) || ALL[0];
 }
 
+/* 예상 소요 시간. 퀘스트 하나에 대략 45초로 잡되, 아주 짧은 챕터도
+   "3분"보다 짧게는 말하지 않습니다. 정확한 값을 약속하는 게 목적이 아니라
+   "이걸 지금 시작해도 되나"를 판단할 수 있게 하는 게 목적입니다. */
+const chapterMins = (ch) => Math.max(3, Math.round(ch.quests.length * 0.8));
+const TOTAL_MINS  = CHAPTERS.reduce((s, ch) => s + chapterMins(ch), 0);
+const humanMins = (m) => m < 60 ? `약 ${m}분` : `약 ${Math.floor(m/60)}시간 ${m%60 ? m%60 + '분' : ''}`.trim();
+
+/* ============================================================
+ * 랜딩 — 맥이 아닌 기기로 들어온 사람
+ * ------------------------------------------------------------
+ * 링크를 타고 오는 사람의 대부분은 휴대폰입니다. 그 사람에게
+ * "맥이 아니네요"만 띄우면 거기서 끝납니다. 그래서 이 화면은
+ *   1) 이게 뭐 하는 건지 한 문장으로 보여주고
+ *   2) 손가락만으로 풀 수 있는 세 문제로 재미를 먼저 맛보이고
+ *   3) 맥으로 넘어갈 방법을 손에 쥐여줍니다.
+ * 세 문제는 채점만 하고 XP를 주지 않습니다. 진짜는 맥에서 시작합니다.
+ * ============================================================ */
+function renderLanding() {
+  clearStage();
+  current = null;
+  setView('home');
+
+  let at = 0, correct = 0;
+
+  const v = el('div', 'tilestack');
+  v.innerHTML = `
+    <section class="tile light landing">
+      <div class="tile-inner">
+        <p class="tile-eyebrow">맥북 스타터팩</p>
+        <h1>맥북, 사놓고<br/>브라우저만 켜고 있나요?</h1>
+        <p class="tile-lead">
+          읽는 가이드가 아닙니다. <b>직접 눌러야 다음으로 넘어가는</b>
+          ${ALL.length}개짜리 퀘스트예요.
+        </p>
+
+        <div class="landing-quiz" id="lquiz"></div>
+
+        <div class="landing-send" id="lsend" hidden>
+          <h2>진짜는 맥북 앞에서 시작합니다</h2>
+          <p class="tile-lead">
+            여기서부터는 ⌘ 키와 트랙패드를 실제로 눌러야 넘어갑니다.
+            휴대폰으로는 채점이 안 돼요.
+          </p>
+          <div class="sendbox">
+            <input type="text" id="lurl" readonly value="${location.href.split('#')[0]}" aria-label="가이드 주소" />
+            <button class="btn-pill" id="lcopy">링크 복사</button>
+          </div>
+          <p class="fineprint sendhint">
+            아이폰에서 복사하면 같은 계정의 맥에 <b>그대로 붙여넣기(⌘V)</b> 됩니다.
+            유니버설 클립보드라고 하는데, 9챕터에서 다루는 기능이에요. 지금 한번 써보세요.
+          </p>
+          <div class="tile-actions">
+            <button class="btn-ghost" id="lbrowse">그냥 내용만 둘러볼게요</button>
+          </div>
+        </div>
+      </div>
+    </section>`;
+  $('#stage').appendChild(v);
+
+  const box = $('#lquiz');
+
+  function paintQuestion() {
+    const t = TEASER[at];
+    box.innerHTML = `
+      <p class="lq-step tabular">맛보기 ${at + 1} / ${TEASER.length}</p>
+      <p class="lq-q">${t.q}</p>
+      <div class="lq-options">
+        ${t.options.map((o, i) => `<button class="lq-opt" data-i="${i}">${o}</button>`).join('')}
+      </div>`;
+    $$('.lq-opt', box).forEach(b => b.addEventListener('click', () => choose(+b.dataset.i)));
+  }
+
+  function choose(i) {
+    const t = TEASER[at];
+    const right = i === t.answer;
+    if (right) correct++;
+    $$('.lq-opt', box).forEach((b, k) => {
+      b.disabled = true;
+      if (k === t.answer) b.classList.add('right');
+      else if (k === i) b.classList.add('wrong');
+    });
+    const last = at === TEASER.length - 1;
+    box.insertAdjacentHTML('beforeend', `
+      <div class="lq-explain">
+        <p class="lq-verdict ${right ? 'ok' : 'no'}">${right ? '맞았습니다' : '아깝네요'}</p>
+        <p>${t.explain}</p>
+        <button class="btn-pill lg" id="lnext">${last ? '결과 보기' : '다음 문제'}</button>
+      </div>`);
+    $('#lnext').addEventListener('click', () => {
+      if (last) return finish();
+      at++; paintQuestion();
+    });
+    $('#lnext').focus();
+  }
+
+  function finish() {
+    box.innerHTML = `
+      <div class="lq-result">
+        <p class="lq-score tabular">${TEASER.length}문제 중 <b>${correct}개</b> 정답</p>
+        <p class="lq-line">${
+          correct === TEASER.length
+            ? '이미 좀 아시네요. 그럼 나머지 ' + (ALL.length - TEASER.length) + '개는 더 재미있을 겁니다.'
+            : correct === 0
+              ? '괜찮습니다. 여기 온 사람 대부분이 이렇게 시작해요.'
+              : '딱 좋습니다. 아는 것 반, 모르는 것 반일 때가 제일 잘 늘어요.'
+        }</p>
+      </div>`;
+    $('#lsend').hidden = false;
+    $('#lsend').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  paintQuestion();
+
+  $('#lcopy').addEventListener('click', async () => {
+    const url = $('#lurl').value;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast('복사했습니다. 맥에서 ⌘V 로 붙여넣으세요.');
+    } catch {
+      // 인앱 브라우저에서는 클립보드 API가 막혀 있을 수 있습니다.
+      const inp = $('#lurl');
+      inp.focus(); inp.select(); inp.setSelectionRange(0, url.length);
+      toast('주소를 길게 눌러 복사해주세요.');
+    }
+  });
+
+  $('#lbrowse').addEventListener('click', () => {
+    State.data.landed = true; State.save();
+    renderHome();
+  });
+
+  renderSidebar();
+  renderHeader();
+
+  // 이 화면에서 상단 "시작하기"를 누르면 판정이 안 되는 퀘스트로 떨어집니다.
+  // 지금 이 사람에게 맞는 다음 행동은 맛보기 문제입니다.
+  const resume = $('#resumeBtn');
+  resume.textContent = '맛보기 풀어보기';
+  resume.onclick = () => $('#lquiz').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
 /* ─────────── 홈: 풀블리드 제품 타일 스택 ─────────── */
 function renderHome() {
   clearStage();
@@ -269,24 +411,28 @@ function renderHome() {
     <section class="tile light">
       <div class="tile-inner">
         <h1>맥북, 처음이시죠?</h1>
-        <p class="tile-lead">설명서를 읽는 대신 직접 눌러보면서 배웁니다.</p>
-        <p class="tile-badge">${TARGET_OS.full} 기준</p>
+        <p class="tile-lead">
+          읽는 가이드가 아닙니다. <b>직접 눌러야 다음으로 넘어갑니다.</b>
+        </p>
         <div class="tile-actions">
-          <button class="btn-pill hero" id="startBtn">${cleared ? '이어서 하기' : '퀘스트 시작하기'}</button>
-          <button class="btn-ghost" id="reviewBtn">치트시트 보기</button>
+          <button class="btn-pill hero" id="startBtn">${cleared ? '이어서 하기' : '1챕터부터 시작하기'}</button>
+          <button class="btn-ghost" id="reviewBtn">${cleared ? '내 치트시트' : '무엇을 배우나요'}</button>
         </div>
+        <p class="hero-meta">
+          ${CHAPTERS.length}개 챕터 · ${humanMins(TOTAL_MINS)} · 언제든 멈췄다 이어서
+        </p>
         <div class="tile-product hero">💻</div>
         <div class="statrow">
-          <div><b>${CHAPTERS.length}</b><small>챕터</small></div>
-          <div><b>${ALL.length}</b><small>퀘스트</small></div>
-          <div><b class="tabular">${TOTAL_XP}</b><small>총 XP</small></div>
-          <div><b class="tabular">${cleared}</b><small>클리어</small></div>
+          <div><b class="tabular">${cleared}</b><small>깬 퀘스트</small></div>
+          <div><b class="tabular">${ALL.length}</b><small>전체</small></div>
+          <div><b class="tabular">${State.data.xp}</b><small>XP</small></div>
+          <div><b>${rankOf(State.data.xp).icon}</b><small>${rankOf(State.data.xp).name}</small></div>
         </div>
         <div class="notice">
           ${TARGET_OS.note}
           ${Engine.isMac ? '' : `<br/><br/>
-            지금 맥이 아닌 기기에서 열고 계신 것 같습니다. 내용은 그대로 보실 수 있지만,
-            키 입력과 트랙패드 제스처 판정은 macOS의 브라우저에서 동작합니다.`}
+            지금은 맥이 아닌 기기로 보고 계셔서 <b>키 입력과 제스처 판정이 동작하지 않습니다.</b>
+            내용은 그대로 보실 수 있어요.`}
         </div>
       </div>
     </section>`;
@@ -296,10 +442,24 @@ function renderHome() {
     const all = ch.quests.length;
     const complete = done === all;
     const tone = tileTone(i);
-    const dark = isDarkTone(tone);
     const label = complete ? '다시 보기' : (done ? '이어서 하기' : '시작하기');
 
-    return `
+    // 파트가 시작되는 챕터 앞에는 얇은 구분 띠를 하나 넣습니다.
+    const part = PARTS.find(p => p.from === i);
+    const partStrip = part ? `
+      <section class="partstrip">
+        <div class="partstrip-inner">
+          <p class="part-no">PART ${part.no}</p>
+          <h2>${part.title}</h2>
+          <p>${part.lead}</p>
+          <p class="part-meta tabular">${
+            CHAPTERS.filter((_, k) => k >= part.from && k < (PARTS.find(x => x.from > part.from)?.from ?? CHAPTERS.length))
+              .reduce((s, c) => s + chapterMins(c), 0)
+          }분 분량</p>
+        </div>
+      </section>` : '';
+
+    return partStrip + `
       <section class="tile ${tone}">
         <div class="tile-inner">
           <p class="tile-eyebrow">챕터 ${i + 1}${complete ? ' · 완료' : ''}</p>
@@ -308,7 +468,7 @@ function renderHome() {
           <div class="tile-product">${ch.icon}</div>
           <div class="tile-progress"><i style="width:${done / all * 100}%"></i></div>
           <p class="tile-note">
-            ${all}개 퀘스트 · ${done}개 완료
+            ${all}개 퀘스트 · ${chapterMins(ch)}분 · ${done}개 완료
             <br/><span class="tile-kind">${chapterKind(ch)}</span>
           </p>
           <div class="tile-actions">
@@ -326,7 +486,12 @@ function renderHome() {
     State.data.started = true; State.save();
     goTo(firstUncleared().id);
   });
-  $('#reviewBtn').addEventListener('click', openCheat);
+  // 아직 아무것도 안 깬 사람에게 빈 치트시트를 열어주면 "고장났나?" 가 됩니다.
+  // 그때는 대신 여정의 첫 파트로 데려갑니다.
+  $('#reviewBtn').addEventListener('click', () => {
+    if (cleared) return openCheat();
+    $('.partstrip')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
 
   $$('.tile-actions [data-ci]').forEach(b => b.addEventListener('click', () => {
     const ci = +b.dataset.ci;
@@ -709,6 +874,9 @@ function boot() {
     if (State.data.started && State.data.last && !ALL.every(q => State.isCleared(q.id))) {
       const last = byId[State.data.last];
       goTo(last && !State.isCleared(last.id) ? last.id : firstUncleared().id);
+    } else if (!Engine.isMac && !State.data.landed) {
+      // 링크를 타고 처음 들어온 휴대폰 방문자. 거절 대신 맛보기부터.
+      renderLanding();
     } else {
       renderHome();
     }

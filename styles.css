@@ -468,6 +468,48 @@ body[data-view="home"] .sidebar { display: none; }
 .tile.dark-2     { background: var(--tile-2); color: var(--on-dark); }
 .tile.dark-3     { background: var(--tile-3); color: var(--on-dark); }
 
+/* ── 파트 구분 띠 ──
+   타일 11장이 그냥 쌓이면 긴 목록으로 읽힙니다. 어디까지가 기본기이고
+   어디부터가 응용인지 보이도록, 파트가 시작될 때만 얇은 검은 띠를 넣습니다.
+   타일이 아니라 "장 제목"이므로 패딩도 글자도 훨씬 작습니다. */
+.partstrip {
+  background: var(--black);
+  color: var(--on-dark);
+  padding: var(--s-xl) var(--s-lg);
+  text-align: center;
+}
+.partstrip-inner { max-width: 680px; margin: 0 auto; }
+.part-no {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  color: var(--primary-on-dark);
+  margin: 0 0 var(--s-xs);
+}
+.partstrip h2 {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.28px;
+  margin: 0 0 var(--s-xs);
+}
+.partstrip p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.47;
+  letter-spacing: -0.24px;
+  color: var(--body-muted);
+}
+.part-meta { margin-top: var(--s-xs) !important; font-size: 12px !important; color: #8a8a8e !important; }
+
+.hero-meta {
+  margin: var(--s-md) 0 0;
+  font-size: 14px;
+  line-height: 1.43;
+  letter-spacing: -0.224px;
+  color: var(--ink-48);
+}
+
 .tile-eyebrow {
   font-size: 14px;
   font-weight: 600;
@@ -589,6 +631,116 @@ body[data-view="home"] .sidebar { display: none; }
   line-height: 1.43;
   letter-spacing: -0.224px;
   color: var(--ink-48);
+}
+
+/* ============================================================
+ * 랜딩 — 링크를 타고 들어온 휴대폰 방문자
+ *   손가락만으로 풀 수 있는 세 문제 → 맥으로 넘어갈 방법
+ * ============================================================ */
+.tile.landing { padding-top: var(--s-xxl); }
+.tile.landing h1 { font-size: 40px; line-height: 1.1; }
+
+.landing-quiz {
+  max-width: 480px;
+  margin: var(--s-xxl) auto 0;
+  text-align: left;
+}
+.lq-step {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  color: var(--primary);
+  margin: 0 0 var(--s-xs);
+}
+.lq-q {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.32;
+  letter-spacing: -0.28px;
+  margin: 0 0 var(--s-lg);
+  text-wrap: balance;
+}
+.lq-options { display: flex; flex-direction: column; gap: var(--s-xs); }
+.lq-opt {
+  width: 100%;
+  text-align: left;
+  padding: 14px 16px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-md);
+  background: var(--canvas);
+  font-size: 16px;
+  line-height: 1.4;
+  letter-spacing: -0.24px;
+  min-height: 48px;              /* 손가락으로 누르는 화면이라 넉넉하게 */
+}
+.lq-opt:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); }
+.lq-opt:disabled { cursor: default; color: var(--ink-48); }
+.lq-opt.right {
+  border-color: var(--state-pass);
+  color: var(--state-pass);
+  font-weight: 600;
+  background: rgba(36, 138, 61, .06);
+}
+.lq-opt.wrong { border-color: var(--state-fail); color: var(--state-fail); }
+
+.lq-explain {
+  margin-top: var(--s-lg);
+  padding-top: var(--s-lg);
+  border-top: 1px solid var(--hairline);
+  font-size: 15px;
+  line-height: 1.53;
+  letter-spacing: -0.24px;
+}
+.lq-explain p { margin: 0 0 var(--s-md); }
+.lq-verdict { font-weight: 600; }
+.lq-verdict.ok { color: var(--state-pass); }
+.lq-verdict.no { color: var(--state-fail); }
+
+.lq-result { text-align: center; padding: var(--s-lg) 0; }
+.lq-score {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 300;
+  letter-spacing: -0.28px;
+  margin: 0 0 var(--s-xs);
+}
+.lq-score b { font-weight: 600; }
+.lq-line { margin: 0; color: var(--ink-48); font-size: 15px; letter-spacing: -0.24px; }
+
+.landing-send {
+  max-width: 480px;
+  margin: var(--s-xxl) auto 0;
+  padding-top: var(--s-xl);
+  border-top: 1px solid var(--hairline);
+}
+.landing-send h2 {
+  font-size: 26px;
+  letter-spacing: -0.28px;
+  margin-bottom: var(--s-sm);
+}
+.sendbox { display: flex; gap: var(--s-xs); margin-top: var(--s-lg); }
+.sendbox input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 14px;
+  letter-spacing: -0.224px;
+  color: var(--ink-48);
+  padding: 8px 14px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-pill);
+  background: var(--canvas);
+}
+.sendbox .btn-pill { flex: none; }
+.sendhint { margin-top: var(--s-sm); line-height: 1.5; text-align: left; }
+
+@media (max-width: 520px) {
+  .tile.landing h1 { font-size: 32px; }
+  .lq-q { font-size: 20px; }
+  .sendbox { flex-direction: column; }
+  .sendbox .btn-pill { padding: 12px 16px; }
+  .partstrip h2 { font-size: 24px; }
 }
 
 /* 맥이 아닐 때의 안내 */
